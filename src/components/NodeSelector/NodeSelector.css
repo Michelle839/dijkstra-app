@@ -1,0 +1,43 @@
+.node-selector {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.node-selector__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.node-selector__label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+.node-selector select {
+  min-width: 112px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: rgba(255, 255, 255, 0.95);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.node-selector select:focus {
+  outline: 2px solid rgba(24, 95, 165, 0.35);
+  outline-offset: 1px;
+}
+
+.node-selector select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
