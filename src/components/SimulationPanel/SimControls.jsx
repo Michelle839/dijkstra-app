@@ -14,12 +14,14 @@ export function SimControls({ onRunMessage }) {
   const isPlaying = useStore((s) => s.isPlaying)
   const runDijkstra = useStore((s) => s.runDijkstra)
   const nextStep = useStore((s) => s.nextStep)
+  const previousStep = useStore((s) => s.previousStep)
   const reset = useStore((s) => s.reset)
   const setIsPlaying = useStore((s) => s.setIsPlaying)
 
   const hasSteps = steps.length > 0
   const atLast = hasSteps && currentStep >= steps.length - 1
   const canStep = hasSteps && !atLast
+  const canPrev = hasSteps && currentStep >= 0 && !isPlaying
 
   const handleCalculate = () => {
     const out = runDijkstra()
@@ -42,6 +44,11 @@ export function SimControls({ onRunMessage }) {
   const handleNext = () => {
     if (!canStep) return
     nextStep()
+  }
+
+  const handlePrevious = () => {
+    if (!canPrev) return
+    previousStep()
   }
 
   const handleReset = () => {
@@ -85,6 +92,16 @@ export function SimControls({ onRunMessage }) {
           aria-label="Pausar"
         >
           ⏸
+        </button>
+        <button
+          type="button"
+          className="sim-toolbar__btn"
+          onClick={handlePrevious}
+          disabled={!canPrev}
+          title="Paso anterior"
+          aria-label="Paso anterior"
+        >
+          ⏮
         </button>
         <button
           type="button"

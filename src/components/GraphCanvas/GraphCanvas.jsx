@@ -1,20 +1,31 @@
 /**
- * Visualiza el grafo en un canvas HTML5. Solo lectura del store: redibuja cuando cambia el estado.
- * Las funciones drawEdges / drawNodes concentran el dibujo geométrico.
- * Las aristas reflejan edgesEvaluated / edgesUpdated del paso actual y la ruta final.
+ * Visualiza el grafo en canvas: paso a paso con [dist, pred], siguiente nodo elegido,
+ * aristas evaluadas/actualizadas y estilo más claro y dinámico.
  */
 
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../../store/useStore.js'
-import { computeCircularLayout } from '../../utils/graphLayout.js'
+import { mergeCircularLayoutWithOverrides } from '../../utils/graphLayout.js'
 import { NODE_COLORS, EDGE_COLORS } from '../../constants/graphColors.js'
 import './GraphCanvas.css'
 
-/** Aristas en evaluación (desde el nodo actual): tono ámbar con leve pulso. */
 const EDGE_EVALUATED_BASE = '#E8A317'
 const EDGE_EVALUATED_BRIGHT = '#FFD54A'
-/** Arista que mejoró distancia: rojo intenso (por debajo de la ruta final). */
-const EDGE_RELAXED = '#B22222'
+const EDGE_RELAXED = '#C62828'
+const NEXT_PICK_RING = '#F59E0B'
+const BG_GRID = 'rgba(15, 23, 42, 0.04)'
+const NODE_HIT_RADIUS = 26
+
+/**
+ * Nodo que el algoritmo tomará como `currentNode` en el paso siguiente (mínima distancia entre no visitados).
+ * @param {object} step
+ * @param {object | undefined} nextStep
+ * @param {boolean} showPath
+ */
+function getSelectedNextNodeId(step, nextStep, showPath) {
+  if (!step || showPath || !nextStep) return null
+  return nextStep.currentNode
+}
 
 /**
  * @param {string} from
@@ -35,13 +46,6 @@ function isPathEdge(from, to, finalPath) {
   return false
 }
 
-/**
- * ¿La arista del grafo coincide con el par (from,to) del paso? (no dirigida)
- * @param {string} eFrom
- * @param {string} eTo
- * @param {string} sFrom
- * @param {string} sTo
- */
 function undirectedPairMatches(eFrom, eTo, sFrom, sTo) {
   return (
     (eFrom === sFrom && eTo === sTo) ||
@@ -49,10 +53,6 @@ function undirectedPairMatches(eFrom, eTo, sFrom, sTo) {
   )
 }
 
-/**
- * @param {{ from: string, to: string }} graphEdge
- * @param {Array<{ from: string, to: string }> | undefined} list
- */
 function edgeInStepList(graphEdge, list) {
   if (!list?.length) return false
   return list.some(({ from, to }) =>
@@ -60,23 +60,47 @@ function edgeInStepList(graphEdge, list) {
   )
 }
 
+function edgeBendSign(eFrom, eTo) {
+  const s = `${eFrom}|${eTo}`
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h + s.charCodeAt(i) * (i + 1)) % 7
+  return h % 2 === 0 ? 1 : -1
+}
+
 /**
- * Prioridad: ruta final > aristas actualizadas > aristas evaluadas > default.
- * @param {{ from: string, to: string, weight: number }} e
- * @param {{ showPath: boolean, finalPath: string[], step: object | null, pulse: number }} state
- * @returns {{ stroke: string, lineWidth: number, glow?: string }}
+ * Punto de control para curvar la arista ligeramente (evita aspecto “rigido”).
  */
+function edgeControlPoint(p0, p1, bendSign) {
+  const mx = (p0.x + p1.x) / 2
+  const my = (p0.y + p1.y) / 2
+  const dx = p1.x - p0.x
+  const dy = p1.y - p0.y
+  const len = Math.hypot(dx, dy) || 1
+  const nx = -dy / len
+  const ny = dx / len
+  const bend = Math.min(28, len * 0.12) * bendSign
+  return { x: mx + nx * bend, y: my + ny * bend }
+}
+
+function quadPointAt(p0, cp, p1, t) {
+  const o = 1 - t
+  return {
+    x: o * o * p0.x + 2 * o * t * cp.x + t * t * p1.x,
+    y: o * o * p0.y + 2 * o * t * cp.y + t * t * p1.y,
+  }
+}
+
 function edgeStyle(e, state) {
   const onPath =
     state.showPath && isPathEdge(e.from, e.to, state.finalPath)
   if (onPath) {
-    return { stroke: EDGE_COLORS.path, lineWidth: 3.5 }
+    return { stroke: EDGE_COLORS.path, lineWidth: 4, glow: 'rgba(216, 90, 48, 0.35)' }
   }
 
   const inUpdated =
     state.step && edgeInStepList(e, state.step.edgesUpdated)
   if (inUpdated) {
-    return { stroke: EDGE_RELAXED, lineWidth: 4 }
+    return { stroke: EDGE_RELAXED, lineWidth: 4.5, glow: 'rgba(198, 40, 40, 0.25)' }
   }
 
   const inEval =
@@ -85,10 +109,10 @@ function edgeStyle(e, state) {
     const t = state.pulse
     const stroke =
       t < 0.5 ? EDGE_EVALUATED_BASE : EDGE_EVALUATED_BRIGHT
-    return { stroke, lineWidth: 2.5 + t * 1.2, glow: 'rgba(232, 163, 23, 0.45)' }
+    return { stroke, lineWidth: 3 + t * 1.5, glow: 'rgba(232, 163, 23, 0.5)' }
   }
 
-  return { stroke: EDGE_COLORS.default, lineWidth: 2 }
+  return { stroke: EDGE_COLORS.default, lineWidth: 2.2 }
 }
 
 /**
@@ -96,57 +120,88 @@ function edgeStyle(e, state) {
  * @param {Array<{ from: string, to: string, weight: number }>} edges
  * @param {Record<string, { x: number, y: number }>} layout
  * @param {{ showPath: boolean, finalPath: string[], step: object | null, pulse: number }} state
+ * @param {string | null} currentNode
  */
-function drawEdges(ctx, edges, layout, state) {
+function drawEdges(ctx, edges, layout, state, currentNode) {
   for (const e of edges) {
     const p0 = layout[e.from]
     const p1 = layout[e.to]
     if (!p0 || !p1) continue
 
     const style = edgeStyle(e, state)
+    const bend = edgeBendSign(e.from, e.to)
+    const cp = edgeControlPoint(p0, p1, bend)
 
     ctx.save()
     ctx.beginPath()
     ctx.moveTo(p0.x, p0.y)
-    ctx.lineTo(p1.x, p1.y)
+    ctx.quadraticCurveTo(cp.x, cp.y, p1.x, p1.y)
 
     if (style.glow) {
       ctx.shadowColor = style.glow
-      ctx.shadowBlur = 8
+      ctx.shadowBlur = 10
     }
 
     ctx.strokeStyle = style.stroke
     ctx.lineWidth = style.lineWidth
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
     ctx.stroke()
     ctx.restore()
 
-    const mx = (p0.x + p1.x) / 2
-    const my = (p0.y + p1.y) / 2
-    ctx.font = '12px system-ui, sans-serif'
-    ctx.fillStyle = '#2a2925'
+    const mid = quadPointAt(p0, cp, p1, 0.5)
+    const w = String(e.weight)
+    ctx.font = '600 11px system-ui, sans-serif'
+    const tw = ctx.measureText(w).width
+    const pw = tw + 10
+    const ph = 18
+    ctx.save()
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
+    ctx.strokeStyle = 'rgba(15, 23, 42, 0.1)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(mid.x - pw / 2, mid.y - ph / 2, pw, ph, 8)
+    } else {
+      ctx.rect(mid.x - pw / 2, mid.y - ph / 2, pw, ph)
+    }
+    ctx.fill()
+    ctx.stroke()
+    ctx.fillStyle = '#334155'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText(String(e.weight), mx, my)
+    ctx.fillText(w, mid.x, mid.y)
+    ctx.restore()
+
+    const inEval =
+      state.step &&
+      currentNode &&
+      edgeInStepList(e, state.step.edgesEvaluated) &&
+      (e.from === currentNode || e.to === currentNode)
+    if (inEval) {
+      const t = 0.38
+      const q = quadPointAt(p0, cp, p1, t)
+      const toward =
+        e.from === currentNode
+          ? { x: p1.x - p0.x, y: p1.y - p0.y }
+          : { x: p0.x - p1.x, y: p0.y - p1.y }
+      const al = Math.hypot(toward.x, toward.y) || 1
+      const ux = toward.x / al
+      const uy = toward.y / al
+      ctx.save()
+      ctx.fillStyle = style.stroke
+      ctx.beginPath()
+      const s = 5
+      ctx.moveTo(q.x + ux * s, q.y + uy * s)
+      ctx.lineTo(q.x - ux * s + -uy * (s * 0.65), q.y - uy * s + ux * (s * 0.65))
+      ctx.lineTo(q.x - ux * s - -uy * (s * 0.65), q.y - uy * s - ux * (s * 0.65))
+      ctx.closePath()
+      ctx.fill()
+      ctx.restore()
+    }
   }
 }
 
-/**
- * @param {string} id
- * @param {{ step: object | null, showPath: boolean, finalPath: string[], startNode: string, endNode: string }} s
- */
-function nodeFillColor(id, s) {
-  if (s.showPath && s.finalPath.includes(id)) return NODE_COLORS.path
-  if (s.step && s.step.currentNode === id) return NODE_COLORS.current
-  if (s.step && s.step.visited.includes(id)) return NODE_COLORS.visited
-  if (id === s.startNode || id === s.endNode) return NODE_COLORS.endpoint
-  return NODE_COLORS.default
-}
-
-/**
- * Etiqueta tipo pizarra: [distancia, predecesor] con "-" si no hay predecesor.
- * @param {string} nodeId
- * @param {{ distances: Record<string, number>, previousNodes: Record<string, string | null> }} step
- */
 function formatDistancePredLabel(nodeId, step) {
   const d = step.distances[nodeId]
   const prev = step.previousNodes[nodeId]
@@ -159,85 +214,225 @@ function formatDistancePredLabel(nodeId, step) {
  * @param {CanvasRenderingContext2D} ctx
  * @param {Array<{ id: string }>} nodes
  * @param {Record<string, { x: number, y: number }>} layout
- * @param {{ step: object | null, showPath: boolean, finalPath: string[], startNode: string, endNode: string }} state
+ * @param {{
+ *   step: object | null,
+ *   showPath: boolean,
+ *   finalPath: string[],
+ *   startNode: string,
+ *   endNode: string,
+ *   selectedNext: string | null,
+ *   pulse: number,
+ * }} state
  */
 function drawNodes(ctx, nodes, layout, state) {
-  const radius = 22
+  const radius = NODE_HIT_RADIUS
+  const pulse = state.pulse
+
   for (const n of nodes) {
     const p = layout[n.id]
     if (!p) continue
 
-    const fill = nodeFillColor(n.id, state)
+    const isNextPick = state.selectedNext === n.id
+    const isCurrent = state.step?.currentNode === n.id
+
+    if (isNextPick && !state.showPath) {
+      const ringPulse = 4 + pulse * 5
+      ctx.save()
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, radius + 8 + ringPulse * 0.3, 0, Math.PI * 2)
+      ctx.strokeStyle = `rgba(245, 158, 11, ${0.35 + pulse * 0.25})`
+      ctx.lineWidth = 3
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, radius + 5, 0, Math.PI * 2)
+      ctx.strokeStyle = NEXT_PICK_RING
+      ctx.lineWidth = 2
+      ctx.stroke()
+      ctx.restore()
+    }
+
+    if (isCurrent) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, radius + 4, 0, Math.PI * 2)
+      ctx.strokeStyle = `rgba(24, 95, 165, ${0.45 + pulse * 0.2})`
+      ctx.lineWidth = 4
+      ctx.stroke()
+      ctx.restore()
+    }
+
+    const fill = (() => {
+      if (state.showPath && state.finalPath.includes(n.id)) return NODE_COLORS.path
+      if (state.step && state.step.currentNode === n.id) return NODE_COLORS.current
+      if (state.step && state.step.visited.includes(n.id)) return NODE_COLORS.visited
+      if (n.id === state.startNode || n.id === state.endNode) return NODE_COLORS.endpoint
+      return NODE_COLORS.default
+    })()
+
+    const grad = ctx.createRadialGradient(
+      p.x - radius * 0.35,
+      p.y - radius * 0.35,
+      2,
+      p.x,
+      p.y,
+      radius + 2,
+    )
+    grad.addColorStop(0, lightenColor(fill, 0.22))
+    grad.addColorStop(0.55, fill)
+    grad.addColorStop(1, darkenColor(fill, 0.12))
+
     ctx.beginPath()
     ctx.arc(p.x, p.y, radius, 0, Math.PI * 2)
-    ctx.fillStyle = fill
+    ctx.fillStyle = grad
     ctx.fill()
-    ctx.strokeStyle = '#1a1916'
+    ctx.strokeStyle = 'rgba(15, 23, 42, 0.35)'
     ctx.lineWidth = 2
     ctx.stroke()
 
-    ctx.font = 'bold 16px system-ui, sans-serif'
+    ctx.font = 'bold 17px system-ui, sans-serif'
     ctx.fillStyle = '#fff'
+    ctx.shadowColor = 'rgba(0,0,0,0.35)'
+    ctx.shadowBlur = 3
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(n.id, p.x, p.y)
+    ctx.shadowBlur = 0
 
     if (state.step?.distances && state.step?.previousNodes) {
-      const label = formatDistancePredLabel(n.id, state.step)
-      ctx.font = '600 10px ui-monospace, "Cascadia Code", Consolas, monospace'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      const metrics = ctx.measureText(label)
-      const padX = 6
-      const bw = Math.ceil(metrics.width + padX * 2)
-      const bh = 16
+      const line1 = formatDistancePredLabel(n.id, state.step)
+      const lines = [line1]
+      if (isNextPick && !state.showPath) {
+        lines.push('★ Elegido → siguiente paso')
+      }
+
+      ctx.font = '600 10.5px ui-monospace, "Cascadia Code", Consolas, monospace'
+      const lineHeight = 13
+      const padX = 8
+      let maxW = 0
+      for (const line of lines) {
+        maxW = Math.max(maxW, ctx.measureText(line).width)
+      }
+      const bw = Math.ceil(maxW + padX * 2)
+      const bh = 8 + lines.length * lineHeight
       const bx = p.x - bw / 2
-      const by = p.y + radius + 6
+      const by = p.y + radius + 8
 
       ctx.save()
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.94)'
-      ctx.strokeStyle = 'rgba(15, 23, 42, 0.14)'
-      ctx.lineWidth = 1
+      const bg = isNextPick && !state.showPath
+        ? 'rgba(255, 251, 235, 0.98)'
+        : 'rgba(255, 255, 255, 0.96)'
+      const border = isNextPick && !state.showPath
+        ? 'rgba(245, 158, 11, 0.55)'
+        : 'rgba(15, 23, 42, 0.12)'
+      ctx.fillStyle = bg
+      ctx.strokeStyle = border
+      ctx.lineWidth = isNextPick && !state.showPath ? 2 : 1
       ctx.beginPath()
       if (typeof ctx.roundRect === 'function') {
-        ctx.roundRect(bx, by, bw, bh, 5)
+        ctx.roundRect(bx, by, bw, bh, 8)
       } else {
         ctx.rect(bx, by, bw, bh)
       }
       ctx.fill()
       ctx.stroke()
-      ctx.fillStyle = '#0f172a'
-      ctx.fillText(label, p.x, by + bh / 2)
+
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      for (let i = 0; i < lines.length; i++) {
+        const ly = by + 6 + lineHeight / 2 + i * lineHeight
+        if (i === 0) {
+          ctx.fillStyle = '#0f172a'
+          ctx.font =
+            '600 10.5px ui-monospace, "Cascadia Code", Consolas, monospace'
+        } else {
+          ctx.fillStyle = '#B45309'
+          ctx.font = '600 9px system-ui, sans-serif'
+        }
+        ctx.fillText(lines[i], p.x, ly)
+      }
       ctx.restore()
     }
   }
 }
 
-/**
- * @param {{ graph: object, currentStep: number, steps: object[], finalPath: string[], startNode: string, endNode: string }} slice
- */
+/** Aclara un hex #RRGGBB */
+function lightenColor(hex, amount) {
+  const rgb = parseHex(hex)
+  if (!rgb) return hex
+  return toHex(
+    Math.min(255, rgb.r + (255 - rgb.r) * amount),
+    Math.min(255, rgb.g + (255 - rgb.g) * amount),
+    Math.min(255, rgb.b + (255 - rgb.b) * amount),
+  )
+}
+
+function darkenColor(hex, amount) {
+  const rgb = parseHex(hex)
+  if (!rgb) return hex
+  return toHex(
+    rgb.r * (1 - amount),
+    rgb.g * (1 - amount),
+    rgb.b * (1 - amount),
+  )
+}
+
+function parseHex(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex)
+  if (!m) return null
+  const n = parseInt(m[1], 16)
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }
+}
+
+function toHex(r, g, b) {
+  const c = (x) =>
+    Math.round(x)
+      .toString(16)
+      .padStart(2, '0')
+  return `#${c(r)}${c(g)}${c(b)}`
+}
+
+function drawBackgroundMesh(ctx, w, h) {
+  ctx.save()
+  const step = 28
+  ctx.strokeStyle = BG_GRID
+  ctx.lineWidth = 1
+  for (let x = 0; x <= w; x += step) {
+    ctx.beginPath()
+    ctx.moveTo(x, 0)
+    ctx.lineTo(x, h)
+    ctx.stroke()
+  }
+  for (let y = 0; y <= h; y += step) {
+    ctx.beginPath()
+    ctx.moveTo(0, y)
+    ctx.lineTo(w, y)
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
 function buildDrawState(slice) {
   const { graph, currentStep, steps, finalPath, startNode, endNode } = slice
   const step =
     currentStep >= 0 && steps[currentStep] ? steps[currentStep] : null
+  const nextStep =
+    currentStep >= 0 && steps[currentStep + 1] ? steps[currentStep + 1] : null
   const showPath =
     steps.length > 0 && currentStep === steps.length - 1 && currentStep >= 0
+  const selectedNext = getSelectedNextNodeId(step, nextStep, showPath)
+
   return {
     graph,
     step,
+    nextStep,
     showPath,
     finalPath,
     startNode,
     endNode,
+    selectedNext,
   }
 }
 
-/**
- * @param {HTMLCanvasElement} canvas
- * @param {{ w: number, h: number }} size
- * @param {ReturnType<typeof buildDrawState>} drawSlice
- * @param {number} pulse 0..1 para interpolar aristas evaluadas
- */
 function paintFrame(canvas, size, drawSlice, pulse) {
   const dpr = window.devicePixelRatio || 1
   canvas.width = size.w * dpr
@@ -250,10 +445,19 @@ function paintFrame(canvas, size, drawSlice, pulse) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, size.w, size.h)
 
-  const layout = computeCircularLayout(
+  const g = ctx.createLinearGradient(0, 0, size.w, size.h)
+  g.addColorStop(0, '#f8fafc')
+  g.addColorStop(0.5, '#f1f5f9')
+  g.addColorStop(1, '#e2e8f0')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, size.w, size.h)
+  drawBackgroundMesh(ctx, size.w, size.h)
+
+  const layout = mergeCircularLayoutWithOverrides(
     drawSlice.graph.nodes,
     size.w,
     size.h,
+    drawSlice.nodeLayoutOverrides,
   )
 
   const edgeState = {
@@ -269,9 +473,18 @@ function paintFrame(canvas, size, drawSlice, pulse) {
     finalPath: drawSlice.finalPath,
     startNode: drawSlice.startNode,
     endNode: drawSlice.endNode,
+    selectedNext: drawSlice.selectedNext,
+    pulse,
   }
 
-  drawEdges(ctx, drawSlice.graph.edges, layout, edgeState)
+  const currentNode = drawSlice.step?.currentNode ?? null
+  drawEdges(
+    ctx,
+    drawSlice.graph.edges,
+    layout,
+    edgeState,
+    currentNode,
+  )
   drawNodes(ctx, drawSlice.graph.nodes, layout, nodeState)
 }
 
@@ -281,11 +494,15 @@ export function GraphCanvas() {
   const [size, setSize] = useState({ w: 400, h: 400 })
 
   const graph = useStore((s) => s.graph)
+  const nodeLayoutOverrides = useStore((s) => s.nodeLayoutOverrides)
+  const setNodeLayoutOverride = useStore((s) => s.setNodeLayoutOverride)
   const currentStep = useStore((s) => s.currentStep)
   const steps = useStore((s) => s.steps)
   const finalPath = useStore((s) => s.finalPath)
   const startNode = useStore((s) => s.startNode)
   const endNode = useStore((s) => s.endNode)
+
+  const dragRef = useRef({ id: null, offX: 0, offY: 0 })
 
   useEffect(() => {
     const el = containerRef.current
@@ -310,23 +527,27 @@ export function GraphCanvas() {
     const canvas = canvasRef.current
     if (!canvas) return undefined
 
-    const drawSlice = buildDrawState({
-      graph,
-      currentStep,
-      steps,
-      finalPath,
-      startNode,
-      endNode,
-    })
+    const drawSlice = {
+      ...buildDrawState({
+        graph,
+        currentStep,
+        steps,
+        finalPath,
+        startNode,
+        endNode,
+      }),
+      nodeLayoutOverrides,
+    }
 
     const step = drawSlice.step
     const shouldPulse =
-      Boolean(step?.edgesEvaluated?.length) &&
       currentStep >= 0 &&
-      !drawSlice.showPath
+      !drawSlice.showPath &&
+      (Boolean(step?.edgesEvaluated?.length) ||
+        Boolean(drawSlice.selectedNext))
 
-    const runPaint = (pulse) => {
-      paintFrame(canvas, size, drawSlice, pulse)
+    const runPaint = (pulseVal) => {
+      paintFrame(canvas, size, drawSlice, pulseVal)
     }
 
     if (!shouldPulse) {
@@ -336,17 +557,131 @@ export function GraphCanvas() {
 
     let rafId = 0
     const loop = (t) => {
-      const pulse = 0.5 + 0.5 * Math.sin(t / 280)
-      runPaint(pulse)
+      const pulseVal = 0.5 + 0.5 * Math.sin(t / 320)
+      runPaint(pulseVal)
       rafId = window.requestAnimationFrame(loop)
     }
     rafId = window.requestAnimationFrame(loop)
     return () => window.cancelAnimationFrame(rafId)
-  }, [graph, currentStep, finalPath, steps, startNode, endNode, size])
+  }, [
+    graph,
+    nodeLayoutOverrides,
+    currentStep,
+    finalPath,
+    steps,
+    startNode,
+    endNode,
+    size,
+  ])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return undefined
+
+    const layoutNow = () =>
+      mergeCircularLayoutWithOverrides(
+        useStore.getState().graph.nodes,
+        size.w,
+        size.h,
+        useStore.getState().nodeLayoutOverrides,
+      )
+
+    const toLocal = (clientX, clientY) => {
+      const r = canvas.getBoundingClientRect()
+      return { x: clientX - r.left, y: clientY - r.top }
+    }
+
+    const hitNode = (x, y) => {
+      const nodes = useStore.getState().graph.nodes
+      const layout = layoutNow()
+      for (let i = nodes.length - 1; i >= 0; i--) {
+        const n = nodes[i]
+        const p = layout[n.id]
+        if (!p) continue
+        const d2 = (x - p.x) ** 2 + (y - p.y) ** 2
+        if (d2 <= (NODE_HIT_RADIUS + 8) ** 2) return { id: n.id, p }
+      }
+      return null
+    }
+
+    const onPointerDown = (e) => {
+      if (e.button !== 0) return
+      const { x, y } = toLocal(e.clientX, e.clientY)
+      const hit = hitNode(x, y)
+      if (hit) {
+        dragRef.current = {
+          id: hit.id,
+          offX: x - hit.p.x,
+          offY: y - hit.p.y,
+        }
+        canvas.style.cursor = 'grabbing'
+        canvas.setPointerCapture(e.pointerId)
+        e.preventDefault()
+      }
+    }
+
+    const onPointerMove = (e) => {
+      const d = dragRef.current
+      const { x, y } = toLocal(e.clientX, e.clientY)
+
+      if (!d.id) {
+        const h = hitNode(x, y)
+        canvas.style.cursor = h ? 'grab' : 'default'
+        return
+      }
+
+      const nx = x - d.offX
+      const ny = y - d.offY
+      const w = size.w
+      const hgt = size.h
+      const rx = Math.min(0.96, Math.max(0.04, nx / w))
+      const ry = Math.min(0.96, Math.max(0.04, ny / hgt))
+      setNodeLayoutOverride(d.id, rx, ry)
+    }
+
+    const endDrag = (e) => {
+      const d = dragRef.current
+      if (!d.id) return
+      dragRef.current = { id: null, offX: 0, offY: 0 }
+      canvas.style.cursor = 'default'
+      try {
+        if (canvas.hasPointerCapture(e.pointerId)) {
+          canvas.releasePointerCapture(e.pointerId)
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    canvas.addEventListener('pointerdown', onPointerDown)
+    canvas.addEventListener('pointermove', onPointerMove)
+    canvas.addEventListener('pointerup', endDrag)
+    canvas.addEventListener('pointercancel', endDrag)
+    const onLeave = () => {
+      if (!dragRef.current.id) canvas.style.cursor = 'default'
+    }
+    canvas.addEventListener('pointerleave', onLeave)
+
+    return () => {
+      canvas.removeEventListener('pointerdown', onPointerDown)
+      canvas.removeEventListener('pointermove', onPointerMove)
+      canvas.removeEventListener('pointerup', endDrag)
+      canvas.removeEventListener('pointercancel', endDrag)
+      canvas.removeEventListener('pointerleave', onLeave)
+    }
+  }, [graph, size.w, size.h, setNodeLayoutOverride])
 
   return (
-    <div ref={containerRef} className="graph-canvas-wrap">
-      <canvas ref={canvasRef} className="graph-canvas" aria-label="Grafo" />
+    <div
+      ref={containerRef}
+      className="graph-canvas-wrap"
+      title="Arrastra los nodos para colocarlos donde prefieras"
+    >
+      <canvas
+        ref={canvasRef}
+        className="graph-canvas"
+        aria-label="Grafo: arrastra los nodos para reorganizarlos"
+      />
     </div>
   )
 }

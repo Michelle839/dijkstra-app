@@ -21,6 +21,8 @@ function canonicalEdge(a, b) {
 
 export const useStore = create((set, get) => ({
   graph: { nodes: [], edges: [] },
+  /** Posiciones personalizadas: coordenadas normalizadas al tamaño del canvas (0–1). */
+  nodeLayoutOverrides: {},
   steps: [],
   currentStep: -1,
   isPlaying: false,
@@ -28,6 +30,20 @@ export const useStore = create((set, get) => ({
   endNode: '',
   finalPath: [],
   totalDistance: 0,
+
+  /**
+   * Fija la posición de un nodo al arrastrarlo (rx, ry en fracción del ancho/alto del lienzo).
+   */
+  setNodeLayoutOverride: (id, rx, ry) =>
+    set((s) => ({
+      nodeLayoutOverrides: {
+        ...s.nodeLayoutOverrides,
+        [id]: {
+          rx: Math.min(0.96, Math.max(0.04, rx)),
+          ry: Math.min(0.96, Math.max(0.04, ry)),
+        },
+      },
+    })),
 
   /**
    * Añade una arista no dirigida (una sola entrada en `edges`, orden canónico).
@@ -54,6 +70,7 @@ export const useStore = create((set, get) => ({
   clearGraph: () =>
     set({
       graph: { nodes: [], edges: [] },
+      nodeLayoutOverrides: {},
       steps: [],
       currentStep: -1,
       isPlaying: false,
@@ -114,6 +131,13 @@ export const useStore = create((set, get) => ({
     if (currentStep < steps.length - 1) {
       set({ currentStep: currentStep + 1 })
     }
+  },
+
+  /** Retrocede un paso en la simulación (hasta -1, antes del primer paso). */
+  previousStep: () => {
+    const { steps, currentStep } = get()
+    if (!steps.length || currentStep < 0) return
+    set({ currentStep: currentStep - 1 })
   },
 
   setIsPlaying: (bool) => set({ isPlaying: bool }),

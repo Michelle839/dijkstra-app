@@ -45,9 +45,8 @@ function App() {
         <div className="simulator__stage">
           <GraphCanvas />
           <SimControls onRunMessage={setRunError} />
+          <ChatPanel />
         </div>
-
-        <ChatPanel />
       </div>
     </div>
   )

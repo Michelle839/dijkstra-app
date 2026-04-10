@@ -56,9 +56,12 @@ export function ChatPanel() {
 
     pushMessage('user', line.trim())
     if (added.length > 0) {
+      const n = added.length
       pushMessage(
         'system',
-        `Se añadieron ${added.length} conexión(es):\n${added.join('\n')}`,
+        n === 1
+          ? 'Listo: se añadió 1 conexión al grafo.'
+          : `Listo: se añadieron ${n} conexiones al grafo.`,
       )
     }
     warnings.forEach((w) => pushMessage('warning', w))
