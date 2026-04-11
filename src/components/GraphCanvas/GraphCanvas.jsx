@@ -142,11 +142,30 @@ function polylineTangentAt(pts, t, forward) {
   return normalizeVec(dx, dy)
 }
 
+/**
+ * Verifica si una arista pertenece a alguno de los caminos más cortos en allPaths.
+ */
+function isAllPathsEdge(from, to, allPaths) {
+  if (!allPaths) return false
+  for (const { path } of Object.values(allPaths)) {
+    if (!path || path.length < 2) continue
+    for (let i = 0; i < path.length - 1; i++) {
+      const a = path[i]
+      const b = path[i + 1]
+      if ((a === from && b === to) || (a === to && b === from)) return true
+    }
+  }
+  return false
+}
+
 function edgeStyle(e, state) {
   const onPath =
     state.showPath && isPathEdge(e.from, e.to, state.finalPath)
-  if (onPath) {
-    return { stroke: EDGE_COLORS.path, lineWidth: 4, glow: 'rgba(216, 90, 48, 0.35)' }
+  const onAllPaths =
+    state.showPath && isAllPathsEdge(e.from, e.to, state.allPaths)
+
+  if (onPath || onAllPaths) {
+    return { stroke: EDGE_COLORS.path, lineWidth: 4, glow: 'rgba(216, 90, 48, 0.45)' }
   }
 
   const inUpdated =
@@ -357,10 +376,24 @@ function drawNodes(ctx, nodes, layout, state) {
     }
 
     const fill = (() => {
-      if (state.showPath && state.finalPath.includes(n.id)) return NODE_COLORS.path
-      if (state.step && state.step.currentNode === n.id) return NODE_COLORS.current
-      if (state.step && state.step.visited.includes(n.id)) return NODE_COLORS.visited
-      if (n.id === state.startNode || n.id === state.endNode) return NODE_COLORS.endpoint
+      // Al final del algoritmo, mostrar todos los caminos más cortos en rojo
+      if (state.showPath && state.allPaths && state.allPaths[n.id]) {
+        return NODE_COLORS.path
+      }
+      // También mostrar nodos visitados que no tienen camino (inalcanzables)
+      if (state.showPath && state.step && state.step.visited.includes(n.id)) {
+        return NODE_COLORS.path
+      }
+      if (state.step && state.step.currentNode === n.id) {
+        return NODE_COLORS.current
+      }
+      // Durante el proceso, los nodos visitados aparecen en verde
+      if (state.step && state.step.visited.includes(n.id)) {
+        return NODE_COLORS.visited
+      }
+      if (n.id === state.startNode || n.id === state.endNode) {
+        return NODE_COLORS.endpoint
+      }
       return NODE_COLORS.default
     })()
 
@@ -507,13 +540,14 @@ function drawBackgroundMesh(ctx, w, h) {
 }
 
 function buildDrawState(slice) {
-  const { graph, currentStep, steps, finalPath, startNode, endNode } = slice
+  const { graph, currentStep, steps, finalPath, allPaths, startNode, endNode } = slice
   const step =
     currentStep >= 0 && steps[currentStep] ? steps[currentStep] : null
   const nextStep =
     currentStep >= 0 && steps[currentStep + 1] ? steps[currentStep + 1] : null
   const showPath =
     steps.length > 0 && currentStep === steps.length - 1 && currentStep >= 0
+  
   const selectedNext = getSelectedNextNodeId(step, nextStep, showPath)
 
   return {
@@ -522,6 +556,7 @@ function buildDrawState(slice) {
     nextStep,
     showPath,
     finalPath,
+    allPaths,
     startNode,
     endNode,
     selectedNext,
@@ -560,6 +595,7 @@ function paintFrame(canvas, size, drawSlice, pulse) {
   const edgeState = {
     showPath: drawSlice.showPath,
     finalPath: drawSlice.finalPath,
+    allPaths: drawSlice.allPaths,
     step: drawSlice.step,
     pulse,
   }
@@ -568,6 +604,7 @@ function paintFrame(canvas, size, drawSlice, pulse) {
     step: drawSlice.step,
     showPath: drawSlice.showPath,
     finalPath: drawSlice.finalPath,
+    allPaths: drawSlice.allPaths,
     startNode: drawSlice.startNode,
     endNode: drawSlice.endNode,
     selectedNext: drawSlice.selectedNext,
@@ -597,6 +634,7 @@ export function GraphCanvas() {
   const currentStep = useStore((s) => s.currentStep)
   const steps = useStore((s) => s.steps)
   const finalPath = useStore((s) => s.finalPath)
+  const allPaths = useStore((s) => s.allPaths)
   const startNode = useStore((s) => s.startNode)
   const endNode = useStore((s) => s.endNode)
   const edgeRenderMode = useStore((s) => s.edgeRenderMode)
@@ -632,6 +670,7 @@ export function GraphCanvas() {
         currentStep,
         steps,
         finalPath,
+        allPaths,
         startNode,
         endNode,
       }),
@@ -668,6 +707,7 @@ export function GraphCanvas() {
     nodeLayoutOverrides,
     currentStep,
     finalPath,
+    allPaths,
     steps,
     startNode,
     endNode,

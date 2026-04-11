@@ -112,9 +112,9 @@ export function ChatPanel() {
         </button>
         {!isCollapsed && (
           <div className="chat-card__headlines">
-            <h2 className="chat-card__title">Asistente de aristas</h2>
+            <h2 className="chat-card__title">Chat para generar el grafo</h2>
             <p className="chat-card__hint">
-              Una línea por arista: <code>origen destino peso</code>. Puedes pegar
+              Escribir una línea por arista: <code>origen destino peso</code>. Puedes pegar
               varias líneas.
             </p>
           </div>

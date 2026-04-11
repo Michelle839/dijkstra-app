@@ -19,6 +19,27 @@ function canonicalEdge(a, b) {
   return a < b ? [a, b] : [b, a]
 }
 
+// Función para formatear el historial de nodos seleccionados como mensaje para el chat
+function formatSelectedNodesMessage(selectedNodes, startNode) {
+  if (!selectedNodes || selectedNodes.length === 0) {
+    return '📋 No hay nodos seleccionados registrados.'
+  }
+
+  let message = `🎯 === HISTORIAL DE NODOS SELECCIONADOS ===\n`
+  message += `📍 Nodo origen: ${startNode}\n`
+  message += `📊 Total de nodos seleccionados: ${selectedNodes.length}\n\n`
+  
+  selectedNodes.forEach((selected, index) => {
+    message += `🔸 Paso ${selected.step}: Nodo "${selected.node}" seleccionado\n`
+    message += `   📏 Distancia acumulada: ${selected.distance}\n`
+    message += `   🎯 Orden de selección: ${index + 1} de ${selectedNodes.length}\n\n`
+  })
+  
+  message += '🏁 === FIN DEL HISTORIAL ==='
+  
+  return message
+}
+
 export const useStore = create((set, get) => ({
   graph: { nodes: [], edges: [] },
   /** Posiciones personalizadas: coordenadas normalizadas al tamaño del canvas (0–1). */
@@ -29,6 +50,9 @@ export const useStore = create((set, get) => ({
   startNode: '',
   endNode: '',
   finalPath: [],
+  allPaths: {},
+  selectedNodes: [],
+  selectedNodesMessage: '',
   totalDistance: 0,
   /** Cómo dibujar aristas en el canvas: straight | curved | step */
   edgeRenderMode: 'straight',
@@ -63,7 +87,8 @@ export const useStore = create((set, get) => ({
     })
     if (exists) return
 
-    const edges = [...graph.edges, { from: a, to: b, weight: Number(weight) }]
+    const newEdge = { from: a, to: b, weight: Number(weight) }
+    const edges = [...graph.edges, newEdge]
     const idSet = new Set(graph.nodes.map((n) => n.id))
     idSet.add(fromId)
     idSet.add(toId)
@@ -82,6 +107,7 @@ export const useStore = create((set, get) => ({
       endNode: '',
       finalPath: [],
       totalDistance: 0,
+      selectedNodesMessage: '',
     }),
 
   setStartNode: (node) =>
@@ -138,14 +164,20 @@ export const useStore = create((set, get) => ({
       state.endNode,
     )
 
+    // Crear mensaje con historial de nodos seleccionados
+    const selectedNodesMessage = formatSelectedNodesMessage(result.selectedNodes, state.startNode)
+    
     set({
       steps: result.steps,
       finalPath: result.finalPath,
+      allPaths: result.allPaths,
+      selectedNodes: result.selectedNodes,
       totalDistance: result.totalDistance,
       currentStep: -1,
       isPlaying: false,
+      selectedNodesMessage, // Guardar mensaje para mostrar en chat
     })
-    return { success: true }
+    return { success: true, selectedNodesMessage }
   },
 
   setCurrentStep: (index) => set({ currentStep: index }),
@@ -157,7 +189,7 @@ export const useStore = create((set, get) => ({
       set({ currentStep: 0 })
       return
     }
-    if (currentStep < steps.length - 1) {
+    if (currentStep < steps.length) {
       set({ currentStep: currentStep + 1 })
     }
   },

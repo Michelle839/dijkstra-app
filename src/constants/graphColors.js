@@ -11,6 +11,6 @@ export const NODE_COLORS = {
 }
 
 export const EDGE_COLORS = {
-  default: '#B4B2A9',
+  default: '#666666',
   path: '#D85A30',
 }

@@ -57,21 +57,14 @@ export function computeStartEndHorizontalLayout(
     return computeCircularLayout(nodes, width, height)
   }
 
-  console.log('Aplicando layout simplificado para nodos:', { startId, endId, totalNodes: nodes.length })
-
-  // Usar solo el área del grafo (donde termina el chat a la derecha)
-  // Asumimos que el chat está colapsado (más espacio para el grafo)
-  const usableWidth = width * 0.90  // 90% del ancho para el grafo, 10% para chat colapsado
-  const usableHeight = height * 0.65  // 65% del alto para el grafo, 35% para controles
-  const chatWidth = width * 0.10  // Espacio ocupado por el chat colapsado a la izquierda
-  
-  const padding = usableWidth * 0.08  // Padding dentro del área del grafo
-  const marginY = usableHeight * 0.10  // Margen vertical dentro del área usable
-  
-  // Posicionar origen y destino dentro del área del grafo (no del canvas completo)
-  const leftX = chatWidth + Math.max(padding, usableWidth * 0.20)  // 20% del área del grafo
-  const rightX = chatWidth + Math.min(usableWidth - padding, usableWidth * 0.80)  // 80% del área del grafo
-  const centerY = usableHeight / 2  // Centrar en el área usable del grafo
+  const usableWidth = width * 0.90
+  const usableHeight = height * 0.65
+  const chatWidth = width * 0.10
+  const padding = usableWidth * 0.08
+  const marginY = usableHeight * 0.10
+  const leftX = chatWidth + Math.max(padding, usableWidth * 0.20)
+  const rightX = chatWidth + Math.min(usableWidth - padding, usableWidth * 0.80)
+  const centerY = usableHeight / 2
 
   const positions = {}
   positions[startId] = { x: leftX, y: centerY }
@@ -142,7 +135,6 @@ export function computeStartEndHorizontalLayout(
     const finalX = Math.max(chatWidth + padding, Math.min(chatWidth + usableWidth - padding, x))
     const finalY = Math.max(marginY, Math.min(usableHeight - marginY, y))
     
-    console.log(`Nodo intermedio ${id}: x=${finalX.toFixed(1)}, y=${finalY.toFixed(1)} (radio: ${maxRadius.toFixed(1)})`)
     positions[id] = { x: finalX, y: finalY }
   })
 

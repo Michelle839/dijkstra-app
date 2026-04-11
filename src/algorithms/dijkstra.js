@@ -58,7 +58,6 @@ export function runDijkstra(graph, start, end) {
   const nodeIds = graph.nodes.map((n) => n.id)
   const adj = buildAdjacency(graph.edges, nodeIds)
 
-  // --- Inicialización de distancias y predecesores ---
   const dist = {}
   const prev = {}
   for (const id of nodeIds) {
@@ -69,9 +68,9 @@ export function runDijkstra(graph, start, end) {
 
   const visited = new Set()
   const steps = []
+  const selectedNodes = []
 
   while (visited.size < nodeIds.length) {
-    // --- Selección del nodo no visitado con distancia mínima ---
     let u = null
     let best = Infinity
     for (const id of nodeIds) {
@@ -82,17 +81,15 @@ export function runDijkstra(graph, start, end) {
     }
     if (u === null || !Number.isFinite(best)) break
 
+    selectedNodes.push({ node: u, distance: best, step: selectedNodes.length + 1 })
+
     visited.add(u)
     const updatedNodes = []
-    /** @type {{ from: string, to: string }[]} */
     const edgesEvaluated = []
-    /** @type {{ from: string, to: string }[]} */
     const edgesUpdated = []
 
-    // --- Relajación de aristas adyacentes a u ---
     for (const { to: v, weight } of adj[u] || []) {
       if (visited.has(v)) continue
-      // Arista (u, v) considerada en este paso (exploración desde el nodo actual)
       edgesEvaluated.push({ from: u, to: v })
       const alt = dist[u] + weight
       if (alt < dist[v]) {
@@ -103,11 +100,7 @@ export function runDijkstra(graph, start, end) {
       }
     }
 
-    const { distances, previousNodes } = snapshotDistancesAndPrev(
-      nodeIds,
-      dist,
-      prev,
-    )
+    const { distances, previousNodes } = snapshotDistancesAndPrev(nodeIds, dist, prev)
 
     steps.push({
       stepNumber: steps.length + 1,
@@ -119,18 +112,24 @@ export function runDijkstra(graph, start, end) {
       edgesUpdated,
       previousNodes,
     })
-
-    if (u === end) break
   }
 
-  // --- Reconstrucción del camino hacia el destino ---
+  const allPaths = {}
+  for (const nodeId of nodeIds) {
+    if (Number.isFinite(dist[nodeId]) && nodeId !== start) {
+      allPaths[nodeId] = { path: reconstructPath(prev, start, nodeId), distance: dist[nodeId] }
+    }
+  }
+  allPaths[start] = { path: [start], distance: 0 }
+
   const totalDistance = dist[end]
-  const finalPath =
-    Number.isFinite(totalDistance) ? reconstructPath(prev, start, end) : []
+  const finalPath = Number.isFinite(totalDistance) ? reconstructPath(prev, start, end) : []
 
   return {
     steps,
     finalPath,
+    allPaths,
+    selectedNodes,
     totalDistance: Number.isFinite(totalDistance) ? totalDistance : Infinity,
   }
 }
