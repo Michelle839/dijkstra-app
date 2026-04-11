@@ -1,5 +1,5 @@
 /**
- * Vista principal: simulador a pantalla completa, chat flotante y controles sobre el grafo.
+ * Vista principal: simulador a pantalla completa, chat en sidebar y controles sobre el grafo.
  */
 
 import { useState } from 'react'
@@ -14,13 +14,22 @@ import './App.css'
 function App() {
   useSimulationPlayback()
   const [runError, setRunError] = useState(null)
+  const [chatOpen, setChatOpen] = useState(true)
 
   return (
     <div className="app">
       <div className="simulator">
         <header className="simulator__header">
           <div className="simulator__brand">
-            <span className="simulator__mark" aria-hidden="true" />
+            <button
+              type="button"
+              className="chat-fab"
+              onClick={() => setChatOpen((v) => !v)}
+              aria-label={chatOpen ? 'Ocultar panel' : 'Mostrar panel'}
+              title={chatOpen ? 'Ocultar panel' : 'Mostrar panel'}
+            >
+              {chatOpen ? '✕' : '☰'}
+            </button>
             <div>
               <h1 className="simulator__title">Dijkstra</h1>
               <p className="simulator__subtitle">Camino mínimo en el grafo</p>
@@ -47,9 +56,11 @@ function App() {
         )}
 
         <div className="simulator__stage">
-          <GraphCanvas />
-          <SimControls onRunMessage={setRunError} />
-          <ChatPanel />
+          {chatOpen && <ChatPanel />}
+          <div className="simulator__canvas-wrap">
+            <GraphCanvas />
+            <SimControls onRunMessage={setRunError} />
+          </div>
         </div>
       </div>
     </div>

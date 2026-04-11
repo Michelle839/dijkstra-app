@@ -113,19 +113,51 @@
 }
 
 .simulator__stage {
-  position: relative;
   flex: 1;
   min-height: 0;
-  padding: 12px 16px 88px;
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  padding: 12px 16px 16px;
 }
 
-.simulator__stage .graph-canvas-wrap {
+.simulator__canvas-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.simulator__canvas-wrap .graph-canvas-wrap {
   height: 100%;
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.9);
   box-shadow:
     0 12px 48px rgba(15, 23, 42, 0.08),
     0 0 0 1px rgba(15, 23, 42, 0.03);
+}
+
+/* FAB junto al título Dijkstra */
+.chat-fab {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: #1e293b;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
+  transition: background 0.2s ease, transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.chat-fab:hover {
+  background: #0f172a;
+  transform: scale(1.08);
 }
 
 @media (max-width: 720px) {
@@ -136,6 +168,7 @@
   }
 
   .simulator__stage {
+    flex-direction: column;
     padding: 10px 10px 16px;
   }
 }

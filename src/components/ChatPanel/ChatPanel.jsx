@@ -19,7 +19,6 @@ function uid() {
 export function ChatPanel() {
   const [messages, setMessages] = useState([])
   const [line, setLine] = useState('')
-  const [isCollapsed, setIsCollapsed] = useState(false)
 
   const clearGraph = useStore((s) => s.clearGraph)
   const lastResult = useStore((s) => s.lastResult)
@@ -108,49 +107,32 @@ export function ChatPanel() {
   }, [clearGraph])
 
   return (
-    <aside 
-      className={`chat-card ${isCollapsed ? 'chat-card--collapsed' : ''}`} 
-      aria-label="Asistente para añadir aristas"
-    >
+    <aside className="chat-card" aria-label="Asistente para añadir aristas">
       <header className="chat-card__header">
-        <button 
-          type="button" 
-          className="chat-card__toggle"
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          aria-label={isCollapsed ? 'Expandir chat' : 'Colapsar chat'}
-        >
-          {isCollapsed ? '»' : '«'}
-        </button>
-        {!isCollapsed && (
-          <div className="chat-card__headlines">
-            <h2 className="chat-card__title">Chat para generar el grafo</h2>
-            <p className="chat-card__hint">
-              Escribir una línea por arista: <code>origen destino peso</code>. Puedes pegar
-              varias líneas.
-            </p>
-          </div>
-        )}
+        <div className="chat-card__headlines">
+          <h2 className="chat-card__title">Chat para generar el grafo</h2>
+          <p className="chat-card__hint">
+            Escribir una línea por arista: <code>origen destino peso</code>. Puedes pegar
+            varias líneas.
+          </p>
+        </div>
       </header>
-      {!isCollapsed && (
-        <>
-          <ChatHistory messages={messages} />
-          <div className="chat-card__footer">
-            <EdgeInput
-              value={line}
-              onChange={setLine}
-              onSubmit={handleAdd}
-            />
-            <div className="chat-card__actions">
-              <button type="button" onClick={handleLoadExample}>
-                Cargar ejemplo
-              </button>
-              <button type="button" onClick={handleClear} className="btn-muted">
-                Limpiar
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+      <ChatHistory messages={messages} />
+      <div className="chat-card__footer">
+        <EdgeInput
+          value={line}
+          onChange={setLine}
+          onSubmit={handleAdd}
+        />
+        <div className="chat-card__actions">
+          <button type="button" onClick={handleLoadExample}>
+            Cargar ejemplo
+          </button>
+          <button type="button" onClick={handleClear} className="btn-muted">
+            Limpiar
+          </button>
+        </div>
+      </div>
     </aside>
   )
 }

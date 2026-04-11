@@ -1,12 +1,6 @@
 .chat-card {
-  position: absolute;
-  left: 20px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 18;
-  width: min(400px, calc(100vw - 40px));
-  max-height: min(88vh, 760px);
-  min-height: 380px;
+  width: 340px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -29,74 +23,33 @@
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
 }
 
+.chat-card__headlines {
+  flex: 1;
+  min-width: 0;
+}
+
 .chat-card__toggle {
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   border: none;
-  background: rgba(24, 95, 165, 0.1);
+  background: #1e293b;
   border-radius: 50%;
-  color: #185fa5;
-  font-size: 14px;
+  color: #fff;
+  font-size: 15px;
   font-weight: bold;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
-  margin-right: 8px;
+  transition: background 0.2s ease, transform 0.15s ease;
   line-height: 1;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
 }
 
 .chat-card__toggle:hover {
-  background: rgba(24, 95, 165, 0.2);
-  transform: scale(1.1);
-}
-
-.chat-card--collapsed {
-  width: 60px;
-  height: 60px;
-  padding: 0;
-  overflow: hidden;
-  background: transparent;
-  border: none;
-}
-
-.chat-card--collapsed .chat-card__header {
-  border-bottom: none;
-  padding: 0;
-  height: 100%;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.chat-card--collapsed .chat-card__headlines {
-  display: none;
-}
-
-.chat-card--collapsed .chat-card__toggle {
-  position: static;
-  transform: none;
-  margin: 0;
-  width: 32px;
-  height: 32px;
-  background: rgba(24, 95, 165, 0.1);
-  border-radius: 50%;
-  color: #185fa5;
-  border: none;
-  font-size: 14px;
-  line-height: 1;
-}
-
-.chat-card--collapsed .chat-card__toggle:hover {
-  background: rgba(24, 95, 165, 0.2);
-  transform: scale(1.1);
-}
-
-.chat-card--collapsed .chat-card__footer {
-  display: none;
+  background: #0f172a;
+  transform: scale(1.08);
 }
 
 .chat-card__avatar {
