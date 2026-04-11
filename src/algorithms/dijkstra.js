@@ -100,7 +100,20 @@ export function runDijkstra(graph, start, end) {
       }
     }
 
+    // Descripción legible del paso para la UI
     const { distances, previousNodes } = snapshotDistancesAndPrev(nodeIds, dist, prev)
+
+    let description = `Nodo actual: ${u}  (dist. ${best})\n`
+    if (edgesEvaluated.length > 0) {
+      const evalStr = edgesEvaluated.map(({ to }) => {
+        const prev_d = dist[to] === Infinity ? '∞' : dist[to]
+        const changed = edgesUpdated.some((e) => e.to === to)
+        return changed ? `${u}→${to} mejoró a ${dist[to]}` : `${u}→${to} sin mejora (${prev_d})`
+      }).join(', ')
+      description += `Aristas: ${evalStr}`
+    } else {
+      description += `Sin vecinos no visitados.`
+    }
 
     steps.push({
       stepNumber: steps.length + 1,
@@ -111,6 +124,7 @@ export function runDijkstra(graph, start, end) {
       edgesEvaluated,
       edgesUpdated,
       previousNodes,
+      description,
     })
   }
 

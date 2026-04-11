@@ -1,5 +1,5 @@
 /**
- * Controles de simulación flotantes sobre el grafo (sin panel de texto paso a paso).
+ * Controles de simulación flotantes sobre el grafo.
  */
 
 import { useStore } from '../../store/useStore.js'
@@ -32,110 +32,60 @@ export function SimControls({ onRunMessage }) {
     onRunMessage(null)
   }
 
-  const handlePlay = () => {
-    if (!canStep) return
-    setIsPlaying(true)
-  }
-
-  const handlePause = () => {
-    setIsPlaying(false)
-  }
-
-  const handleNext = () => {
-    if (!canStep) return
-    nextStep()
-  }
-
-  const handlePrevious = () => {
-    if (!canPrev) return
-    previousStep()
-  }
-
-  const handleReset = () => {
-    setIsPlaying(false)
-    reset()
-  }
+  const handlePlay = () => { if (canStep) setIsPlaying(true) }
+  const handlePause = () => setIsPlaying(false)
+  const handleNext = () => { if (canStep) nextStep() }
+  const handlePrevious = () => { if (canPrev) previousStep() }
+  const handleReset = () => { setIsPlaying(false); reset() }
 
   const totalSteps = steps.length
-  const displayStep =
-    !hasSteps || currentStep < 0 ? '—' : String(currentStep + 1)
+  const displayStep = !hasSteps || currentStep < 0 ? '—' : String(currentStep + 1)
+
+  const currentStepData = hasSteps && currentStep >= 0 ? steps[currentStep] : null
+  const isLastStep = hasSteps && currentStep === steps.length - 1
 
   return (
-    <div className="sim-toolbar" role="toolbar" aria-label="Controles de simulación">
-      <button
-        type="button"
-        className="sim-toolbar__primary"
-        onClick={handleCalculate}
-      >
-        Calcular ruta
-      </button>
+    <div className="sim-toolbar-wrap">
+      {currentStepData && (
+        <div className="sim-step-desc" aria-live="polite">
+          {isLastStep
+            ? 'Algoritmo completado. Todos los caminos mínimos calculados.'
+            : currentStepData.description}
+        </div>
+      )}
+      <div className="sim-toolbar" role="toolbar" aria-label="Controles de simulación">
+        <button
+          type="button"
+          className="sim-toolbar__primary"
+          onClick={handleCalculate}
+        >
+          Calcular ruta
+        </button>
 
-      <span className="sim-toolbar__divider" aria-hidden="true" />
+        <span className="sim-toolbar__divider" aria-hidden="true" />
 
-      <div className="sim-toolbar__transport">
-        <button
-          type="button"
-          className="sim-toolbar__btn"
-          onClick={handlePlay}
-          disabled={!canStep || isPlaying}
-          title="Reproducir pasos (≈1,6 s entre pasos)"
-          aria-label="Reproducir pasos"
-        >
-          ▶
-        </button>
-        <button
-          type="button"
-          className="sim-toolbar__btn"
-          onClick={handlePause}
-          disabled={!isPlaying}
-          title="Pausar"
-          aria-label="Pausar"
-        >
-          ⏸
-        </button>
-        <button
-          type="button"
-          className="sim-toolbar__btn"
-          onClick={handlePrevious}
-          disabled={!canPrev}
-          title="Paso anterior"
-          aria-label="Paso anterior"
-        >
-          ⏮
-        </button>
-        <button
-          type="button"
-          className="sim-toolbar__btn"
-          onClick={handleNext}
-          disabled={!canStep || isPlaying}
-          title="Siguiente paso"
-          aria-label="Siguiente paso"
-        >
-          ⏭
-        </button>
-        <button
-          type="button"
-          className="sim-toolbar__btn sim-toolbar__btn--ghost"
-          onClick={handleReset}
-          disabled={!hasSteps}
-          title="Reiniciar vista del algoritmo"
-          aria-label="Reiniciar vista del algoritmo"
-        >
-          ↺
-        </button>
-      </div>
+        <div className="sim-toolbar__transport">
+          <button type="button" className="sim-toolbar__btn" onClick={handlePlay}
+            disabled={!canStep || isPlaying} title="Reproducir" aria-label="Reproducir">▶</button>
+          <button type="button" className="sim-toolbar__btn" onClick={handlePause}
+            disabled={!isPlaying} title="Pausar" aria-label="Pausar">⏸</button>
+          <button type="button" className="sim-toolbar__btn" onClick={handlePrevious}
+            disabled={!canPrev} title="Paso anterior" aria-label="Paso anterior">⏮</button>
+          <button type="button" className="sim-toolbar__btn" onClick={handleNext}
+            disabled={!canStep || isPlaying} title="Siguiente paso" aria-label="Siguiente paso">⏭</button>
+          <button type="button" className="sim-toolbar__btn sim-toolbar__btn--ghost" onClick={handleReset}
+            disabled={!hasSteps} title="Reiniciar" aria-label="Reiniciar">↺</button>
+        </div>
 
-      <span className="sim-toolbar__divider sim-toolbar__divider--short" aria-hidden="true" />
+        <span className="sim-toolbar__divider sim-toolbar__divider--short" aria-hidden="true" />
 
-      <div className="sim-toolbar__badge" aria-live="polite">
-        <span className="sim-toolbar__badge-label">Paso</span>
-        <span className="sim-toolbar__badge-value">
-          {displayStep}
-          <span className="sim-toolbar__badge-total">
-            {' '}
-            / {totalSteps || '—'}
+        <div className="sim-toolbar__badge" aria-live="polite">
+          <span className="sim-toolbar__badge-label">Paso</span>
+          <span className="sim-toolbar__badge-value">
+            {displayStep}
+            <span className="sim-toolbar__badge-total"> / {totalSteps || '—'}</span>
           </span>
-        </span>
+        </div>
       </div>
     </div>
   )

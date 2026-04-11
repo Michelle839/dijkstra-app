@@ -19,25 +19,42 @@ function canonicalEdge(a, b) {
   return a < b ? [a, b] : [b, a]
 }
 
-// Función para formatear el historial de nodos seleccionados como mensaje para el chat
-function formatSelectedNodesMessage(selectedNodes, startNode) {
-  if (!selectedNodes || selectedNodes.length === 0) {
-    return '📋 No hay nodos seleccionados registrados.'
+// Genera el resumen del algoritmo para mostrar en el chat
+export function formatDijkstraSummary(result, startNode, endNode) {
+  const { steps, allPaths, finalPath, totalDistance } = result
+
+  let msg = `Ruta calculada desde ${startNode} → ${endNode}\n`
+  msg += `${'─'.repeat(34)}\n\n`
+
+  // Caminos más cortos a todos los nodos
+  msg += `Caminos más cortos desde ${startNode}:\n`
+  const sorted = Object.entries(allPaths).sort(([a], [b]) => a.localeCompare(b))
+  for (const [nodeId, { path, distance }] of sorted) {
+    if (nodeId === startNode) continue
+    const distStr = Number.isFinite(distance) ? distance : '∞'
+    msg += `  → ${nodeId}: ${path.join(' → ')}  [${distStr}]\n`
   }
 
-  let message = `🎯 === HISTORIAL DE NODOS SELECCIONADOS ===\n`
-  message += `📍 Nodo origen: ${startNode}\n`
-  message += `📊 Total de nodos seleccionados: ${selectedNodes.length}\n\n`
-  
-  selectedNodes.forEach((selected, index) => {
-    message += `🔸 Paso ${selected.step}: Nodo "${selected.node}" seleccionado\n`
-    message += `   📏 Distancia acumulada: ${selected.distance}\n`
-    message += `   🎯 Orden de selección: ${index + 1} de ${selectedNodes.length}\n\n`
-  })
-  
-  message += '🏁 === FIN DEL HISTORIAL ==='
-  
-  return message
+  msg += `\n`
+
+  // Ruta principal
+  if (finalPath.length > 0) {
+    msg += `Ruta óptima ${startNode} → ${endNode}:\n`
+    msg += `  ${finalPath.join(' → ')}  [costo: ${totalDistance}]\n`
+  } else {
+    msg += `No existe ruta de ${startNode} a ${endNode}.\n`
+  }
+
+  // Nodos inalcanzables
+  const unreachable = steps.length > 0
+    ? steps[steps.length - 1].visited
+        .filter((id) => !allPaths[id])
+    : []
+  if (unreachable.length > 0) {
+    msg += `\nNodos inalcanzables: ${unreachable.join(', ')}\n`
+  }
+
+  return msg
 }
 
 export const useStore = create((set, get) => ({
@@ -54,6 +71,7 @@ export const useStore = create((set, get) => ({
   selectedNodes: [],
   selectedNodesMessage: '',
   totalDistance: 0,
+  lastResult: null,
   /** Cómo dibujar aristas en el canvas: straight | curved | step */
   edgeRenderMode: 'straight',
 
@@ -108,6 +126,7 @@ export const useStore = create((set, get) => ({
       finalPath: [],
       totalDistance: 0,
       selectedNodesMessage: '',
+      lastResult: null,
     }),
 
   setStartNode: (node) =>
@@ -164,9 +183,6 @@ export const useStore = create((set, get) => ({
       state.endNode,
     )
 
-    // Crear mensaje con historial de nodos seleccionados
-    const selectedNodesMessage = formatSelectedNodesMessage(result.selectedNodes, state.startNode)
-    
     set({
       steps: result.steps,
       finalPath: result.finalPath,
@@ -175,9 +191,10 @@ export const useStore = create((set, get) => ({
       totalDistance: result.totalDistance,
       currentStep: -1,
       isPlaying: false,
-      selectedNodesMessage, // Guardar mensaje para mostrar en chat
+      selectedNodesMessage: '',
+      lastResult: { ...result, startNode: state.startNode, endNode: state.endNode },
     })
-    return { success: true, selectedNodesMessage }
+    return { success: true }
   },
 
   setCurrentStep: (index) => set({ currentStep: index }),

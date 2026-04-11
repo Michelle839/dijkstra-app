@@ -2,11 +2,12 @@
  * Panel izquierdo: historial tipo chat y entrada de aristas; dispara acciones del store.
  */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import { useStore } from '../../store/useStore.js'
 import { splitEdgeLines } from '../../utils/parseInput.js'
 import { validateEdgeInput } from '../../utils/validators.js'
 import { EXAMPLE_EDGE_LINES } from '../../constants/exampleGraph.js'
+import { formatDijkstraSummary } from '../../store/useStore.js'
 import { ChatHistory } from './ChatHistory.jsx'
 import { EdgeInput } from './EdgeInput.jsx'
 import './ChatPanel.css'
@@ -21,10 +22,20 @@ export function ChatPanel() {
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   const clearGraph = useStore((s) => s.clearGraph)
+  const lastResult = useStore((s) => s.lastResult)
+  const prevResultRef = useRef(null)
 
   const pushMessage = useCallback((role, text) => {
     setMessages((prev) => [...prev, { id: uid(), role, text }])
   }, [])
+
+  useEffect(() => {
+    if (lastResult && lastResult !== prevResultRef.current) {
+      prevResultRef.current = lastResult
+      const summary = formatDijkstraSummary(lastResult, lastResult.startNode, lastResult.endNode)
+      pushMessage('system', summary)
+    }
+  }, [lastResult, pushMessage])
 
   const handleAdd = useCallback(() => {
     const lines = splitEdgeLines(line)
