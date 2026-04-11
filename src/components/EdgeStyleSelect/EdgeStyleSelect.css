@@ -1,0 +1,30 @@
+.edge-style-select {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.edge-style-select__label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+.edge-style-select select {
+  min-width: 118px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: rgba(255, 255, 255, 0.95);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.edge-style-select select:focus {
+  outline: 2px solid rgba(24, 95, 165, 0.35);
+  outline-offset: 1px;
+}

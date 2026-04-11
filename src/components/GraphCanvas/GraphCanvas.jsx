@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../../store/useStore.js'
-import { mergeCircularLayoutWithOverrides } from '../../utils/graphLayout.js'
+import { mergeLayoutWithOverrides } from '../../utils/graphLayout.js'
 import { NODE_COLORS, EDGE_COLORS } from '../../constants/graphColors.js'
 import './GraphCanvas.css'
 
@@ -90,6 +90,58 @@ function quadPointAt(p0, cp, p1, t) {
   }
 }
 
+function normalizeVec(x, y) {
+  const L = Math.hypot(x, y) || 1
+  return { x: x / L, y: y / L }
+}
+
+function quadTangentAt(p0, cp, p1, t, forward) {
+  const dt = 0.02
+  const t0 = Math.max(0, t - dt)
+  const t1 = Math.min(1, t + dt)
+  const pa = quadPointAt(p0, cp, p1, t0)
+  const pb = quadPointAt(p0, cp, p1, t1)
+  const dx = forward ? pb.x - pa.x : pa.x - pb.x
+  const dy = forward ? pb.y - pa.y : pa.y - pb.y
+  return normalizeVec(dx, dy)
+}
+
+function pointAlongPolyline(pts, t) {
+  if (!pts.length) return { x: 0, y: 0 }
+  if (pts.length === 1) return pts[0]
+  let total = 0
+  const lens = []
+  for (let i = 0; i < pts.length - 1; i++) {
+    const len = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y)
+    lens.push(len)
+    total += len
+  }
+  if (total < 1e-6) return pts[0]
+  let d = t * total
+  for (let i = 0; i < lens.length; i++) {
+    const len = lens[i] || 1e-6
+    if (d <= len || i === lens.length - 1) {
+      const u = Math.min(1, Math.max(0, d / len))
+      const a = pts[i]
+      const b = pts[i + 1]
+      return { x: a.x + u * (b.x - a.x), y: a.y + u * (b.y - a.y) }
+    }
+    d -= len
+  }
+  return pts[pts.length - 1]
+}
+
+function polylineTangentAt(pts, t, forward) {
+  const dt = 0.015
+  const t0 = Math.max(0, t - dt)
+  const t1 = Math.min(1, t + dt)
+  const pa = pointAlongPolyline(pts, t0)
+  const pb = pointAlongPolyline(pts, t1)
+  const dx = forward ? pb.x - pa.x : pa.x - pb.x
+  const dy = forward ? pb.y - pa.y : pa.y - pb.y
+  return normalizeVec(dx, dy)
+}
+
 function edgeStyle(e, state) {
   const onPath =
     state.showPath && isPathEdge(e.from, e.to, state.finalPath)
@@ -121,21 +173,58 @@ function edgeStyle(e, state) {
  * @param {Record<string, { x: number, y: number }>} layout
  * @param {{ showPath: boolean, finalPath: string[], step: object | null, pulse: number }} state
  * @param {string | null} currentNode
+ * @param {'straight' | 'curved' | 'step'} renderMode
  */
-function drawEdges(ctx, edges, layout, state, currentNode) {
+function drawEdges(ctx, edges, layout, state, currentNode, renderMode) {
   for (const e of edges) {
     const p0 = layout[e.from]
     const p1 = layout[e.to]
     if (!p0 || !p1) continue
 
     const style = edgeStyle(e, state)
-    const bend = edgeBendSign(e.from, e.to)
-    const cp = edgeControlPoint(p0, p1, bend)
+
+    /** @type {{ x: number, y: number }} */
+    let labelPoint
+    /** @type {(forward: boolean) => { q: { x: number, y: number }, tan: { x: number, y: number } }} */
+    let arrowSampler
 
     ctx.save()
     ctx.beginPath()
-    ctx.moveTo(p0.x, p0.y)
-    ctx.quadraticCurveTo(cp.x, cp.y, p1.x, p1.y)
+
+    if (renderMode === 'straight') {
+      ctx.moveTo(p0.x, p0.y)
+      ctx.lineTo(p1.x, p1.y)
+      labelPoint = { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 }
+      const poly = [p0, p1]
+      arrowSampler = (forward) => ({
+        q: pointAlongPolyline(poly, forward ? 0.38 : 0.62),
+        tan: polylineTangentAt(poly, forward ? 0.38 : 0.62, forward),
+      })
+    } else if (renderMode === 'step') {
+      const midX = (p0.x + p1.x) / 2
+      const k1 = { x: midX, y: p0.y }
+      const k2 = { x: midX, y: p1.y }
+      ctx.moveTo(p0.x, p0.y)
+      ctx.lineTo(k1.x, k1.y)
+      ctx.lineTo(k2.x, k2.y)
+      ctx.lineTo(p1.x, p1.y)
+      labelPoint = { x: midX, y: (p0.y + p1.y) / 2 }
+      const poly = [p0, k1, k2, p1]
+      arrowSampler = (forward) => ({
+        q: pointAlongPolyline(poly, forward ? 0.35 : 0.65),
+        tan: polylineTangentAt(poly, forward ? 0.35 : 0.65, forward),
+      })
+    } else {
+      const bend = edgeBendSign(e.from, e.to)
+      const cp = edgeControlPoint(p0, p1, bend)
+      ctx.moveTo(p0.x, p0.y)
+      ctx.quadraticCurveTo(cp.x, cp.y, p1.x, p1.y)
+      labelPoint = quadPointAt(p0, cp, p1, 0.5)
+      arrowSampler = (forward) => ({
+        q: quadPointAt(p0, cp, p1, forward ? 0.38 : 0.62),
+        tan: quadTangentAt(p0, cp, p1, forward ? 0.38 : 0.62, forward),
+      })
+    }
 
     if (style.glow) {
       ctx.shadowColor = style.glow
@@ -149,10 +238,9 @@ function drawEdges(ctx, edges, layout, state, currentNode) {
     ctx.stroke()
     ctx.restore()
 
-    const mid = quadPointAt(p0, cp, p1, 0.5)
-    const w = String(e.weight)
+    const wStr = String(e.weight)
     ctx.font = '600 11px system-ui, sans-serif'
-    const tw = ctx.measureText(w).width
+    const tw = ctx.measureText(wStr).width
     const pw = tw + 10
     const ph = 18
     ctx.save()
@@ -161,16 +249,22 @@ function drawEdges(ctx, edges, layout, state, currentNode) {
     ctx.lineWidth = 1
     ctx.beginPath()
     if (typeof ctx.roundRect === 'function') {
-      ctx.roundRect(mid.x - pw / 2, mid.y - ph / 2, pw, ph, 8)
+      ctx.roundRect(
+        labelPoint.x - pw / 2,
+        labelPoint.y - ph / 2,
+        pw,
+        ph,
+        8,
+      )
     } else {
-      ctx.rect(mid.x - pw / 2, mid.y - ph / 2, pw, ph)
+      ctx.rect(labelPoint.x - pw / 2, labelPoint.y - ph / 2, pw, ph)
     }
     ctx.fill()
     ctx.stroke()
     ctx.fillStyle = '#334155'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText(w, mid.x, mid.y)
+    ctx.fillText(wStr, labelPoint.x, labelPoint.y)
     ctx.restore()
 
     const inEval =
@@ -178,23 +272,24 @@ function drawEdges(ctx, edges, layout, state, currentNode) {
       currentNode &&
       edgeInStepList(e, state.step.edgesEvaluated) &&
       (e.from === currentNode || e.to === currentNode)
-    if (inEval) {
-      const t = 0.38
-      const q = quadPointAt(p0, cp, p1, t)
-      const toward =
-        e.from === currentNode
-          ? { x: p1.x - p0.x, y: p1.y - p0.y }
-          : { x: p0.x - p1.x, y: p0.y - p1.y }
-      const al = Math.hypot(toward.x, toward.y) || 1
-      const ux = toward.x / al
-      const uy = toward.y / al
+    if (inEval && arrowSampler) {
+      const forward = currentNode === e.from
+      const { q, tan } = arrowSampler(forward)
+      const ux = tan.x
+      const uy = tan.y
       ctx.save()
       ctx.fillStyle = style.stroke
       ctx.beginPath()
       const s = 5
       ctx.moveTo(q.x + ux * s, q.y + uy * s)
-      ctx.lineTo(q.x - ux * s + -uy * (s * 0.65), q.y - uy * s + ux * (s * 0.65))
-      ctx.lineTo(q.x - ux * s - -uy * (s * 0.65), q.y - uy * s - ux * (s * 0.65))
+      ctx.lineTo(
+        q.x - ux * s + -uy * (s * 0.65),
+        q.y - uy * s + ux * (s * 0.65),
+      )
+      ctx.lineTo(
+        q.x - ux * s - -uy * (s * 0.65),
+        q.y - uy * s - ux * (s * 0.65),
+      )
       ctx.closePath()
       ctx.fill()
       ctx.restore()
@@ -302,7 +397,7 @@ function drawNodes(ctx, nodes, layout, state) {
       const line1 = formatDistancePredLabel(n.id, state.step)
       const lines = [line1]
       if (isNextPick && !state.showPath) {
-        lines.push('★ Elegido → siguiente paso')
+        lines.push('Nodo seleccionado')
       }
 
       ctx.font = '600 10.5px ui-monospace, "Cascadia Code", Consolas, monospace'
@@ -345,8 +440,8 @@ function drawNodes(ctx, nodes, layout, state) {
           ctx.font =
             '600 10.5px ui-monospace, "Cascadia Code", Consolas, monospace'
         } else {
-          ctx.fillStyle = '#B45309'
-          ctx.font = '600 9px system-ui, sans-serif'
+          ctx.fillStyle = '#92400e'
+          ctx.font = '600 9.5px system-ui, sans-serif'
         }
         ctx.fillText(lines[i], p.x, ly)
       }
@@ -453,11 +548,13 @@ function paintFrame(canvas, size, drawSlice, pulse) {
   ctx.fillRect(0, 0, size.w, size.h)
   drawBackgroundMesh(ctx, size.w, size.h)
 
-  const layout = mergeCircularLayoutWithOverrides(
+  const layout = mergeLayoutWithOverrides(
     drawSlice.graph.nodes,
     size.w,
     size.h,
     drawSlice.nodeLayoutOverrides,
+    drawSlice.startNode,
+    drawSlice.endNode,
   )
 
   const edgeState = {
@@ -484,6 +581,7 @@ function paintFrame(canvas, size, drawSlice, pulse) {
     layout,
     edgeState,
     currentNode,
+    drawSlice.edgeRenderMode,
   )
   drawNodes(ctx, drawSlice.graph.nodes, layout, nodeState)
 }
@@ -501,6 +599,7 @@ export function GraphCanvas() {
   const finalPath = useStore((s) => s.finalPath)
   const startNode = useStore((s) => s.startNode)
   const endNode = useStore((s) => s.endNode)
+  const edgeRenderMode = useStore((s) => s.edgeRenderMode)
 
   const dragRef = useRef({ id: null, offX: 0, offY: 0 })
 
@@ -537,6 +636,7 @@ export function GraphCanvas() {
         endNode,
       }),
       nodeLayoutOverrides,
+      edgeRenderMode,
     }
 
     const step = drawSlice.step
@@ -571,6 +671,7 @@ export function GraphCanvas() {
     steps,
     startNode,
     endNode,
+    edgeRenderMode,
     size,
   ])
 
@@ -578,13 +679,17 @@ export function GraphCanvas() {
     const canvas = canvasRef.current
     if (!canvas) return undefined
 
-    const layoutNow = () =>
-      mergeCircularLayoutWithOverrides(
-        useStore.getState().graph.nodes,
+    const layoutNow = () => {
+      const st = useStore.getState()
+      return mergeLayoutWithOverrides(
+        st.graph.nodes,
         size.w,
         size.h,
-        useStore.getState().nodeLayoutOverrides,
+        st.nodeLayoutOverrides,
+        st.startNode,
+        st.endNode,
       )
+    }
 
     const toLocal = (clientX, clientY) => {
       const r = canvas.getBoundingClientRect()
@@ -669,7 +774,7 @@ export function GraphCanvas() {
       canvas.removeEventListener('pointercancel', endDrag)
       canvas.removeEventListener('pointerleave', onLeave)
     }
-  }, [graph, size.w, size.h, setNodeLayoutOverride])
+  }, [graph, size.w, size.h, setNodeLayoutOverride, startNode, endNode])
 
   return (
     <div

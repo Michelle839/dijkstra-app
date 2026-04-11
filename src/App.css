@@ -38,6 +38,13 @@
     0 1px 0 rgba(255, 255, 255, 0.8) inset;
 }
 
+.simulator__header-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
 .simulator__brand {
   display: flex;
   align-items: center;

@@ -30,6 +30,10 @@ export const useStore = create((set, get) => ({
   endNode: '',
   finalPath: [],
   totalDistance: 0,
+  /** Cómo dibujar aristas en el canvas: straight | curved | step */
+  edgeRenderMode: 'straight',
+
+  setEdgeRenderMode: (mode) => set({ edgeRenderMode: mode }),
 
   /**
    * Fija la posición de un nodo al arrastrarlo (rx, ry en fracción del ancho/alto del lienzo).
@@ -80,8 +84,33 @@ export const useStore = create((set, get) => ({
       totalDistance: 0,
     }),
 
-  setStartNode: (node) => set({ startNode: node }),
-  setEndNode: (node) => set({ endNode: node }),
+  setStartNode: (node) =>
+    set((s) => {
+      const ids = new Set(s.graph.nodes.map((n) => n.id))
+      const clear =
+        Boolean(node) &&
+        Boolean(s.endNode) &&
+        ids.has(node) &&
+        ids.has(s.endNode)
+      return {
+        startNode: node,
+        ...(clear ? { nodeLayoutOverrides: {} } : {}),
+      }
+    }),
+
+  setEndNode: (node) =>
+    set((s) => {
+      const ids = new Set(s.graph.nodes.map((n) => n.id))
+      const clear =
+        Boolean(s.startNode) &&
+        Boolean(node) &&
+        ids.has(s.startNode) &&
+        ids.has(node)
+      return {
+        endNode: node,
+        ...(clear ? { nodeLayoutOverrides: {} } : {}),
+      }
+    }),
 
   /**
    * Valida el grafo y los nodos, ejecuta Dijkstra y guarda pasos y resultado.

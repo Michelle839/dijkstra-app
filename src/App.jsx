@@ -5,6 +5,7 @@
 import { useState } from 'react'
 import { ChatPanel } from './components/ChatPanel/ChatPanel.jsx'
 import { GraphCanvas } from './components/GraphCanvas/GraphCanvas.jsx'
+import { EdgeStyleSelect } from './components/EdgeStyleSelect/EdgeStyleSelect.jsx'
 import { NodeSelector } from './components/NodeSelector/NodeSelector.jsx'
 import { SimControls } from './components/SimulationPanel/SimControls.jsx'
 import { useSimulationPlayback } from './hooks/useSimulationPlayback.js'
@@ -25,7 +26,10 @@ function App() {
               <p className="simulator__subtitle">Camino mínimo en el grafo</p>
             </div>
           </div>
-          <NodeSelector />
+          <div className="simulator__header-controls">
+            <NodeSelector />
+            <EdgeStyleSelect />
+          </div>
         </header>
 
         {runError && (

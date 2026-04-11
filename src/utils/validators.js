@@ -66,6 +66,50 @@ export function validateGraphForDijkstra(graph) {
 }
 
 /**
+ * Verifica si existe conexión entre dos nodos usando BFS
+ * @param {{ nodes: Array<{ id: string }>, edges: Array<{ from: string, to: string }> }} graph
+ * @param {string} startNode
+ * @param {string} endNode
+ * @returns {{ ok: true } | { ok: false, message: string }}
+ */
+export function validateGraphConnectivity(graph, startNode, endNode) {
+  // Build adjacency list
+  const adjacency = {}
+  graph.nodes.forEach(node => {
+    adjacency[node.id] = []
+  })
+  
+  graph.edges.forEach(edge => {
+    adjacency[edge.from].push(edge.to)
+    adjacency[edge.to].push(edge.from) // Undirected graph
+  })
+  
+  // BFS to check connectivity
+  const visited = new Set()
+  const queue = [startNode]
+  visited.add(startNode)
+  
+  while (queue.length > 0) {
+    const current = queue.shift()
+    if (current === endNode) {
+      return { ok: true }
+    }
+    
+    for (const neighbor of adjacency[current]) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor)
+        queue.push(neighbor)
+      }
+    }
+  }
+  
+  return {
+    ok: false,
+    message: `No existe conexión entre el nodo origen "${startNode}" y el nodo destino "${endNode}". Verifica que las aristas conecten ambos nodos.`
+  }
+}
+
+/**
  * Comprueba inicio, fin y pertenencia al grafo antes de llamar al algoritmo.
  * @param {{ nodes: Array<{ id: string }> }} graph
  * @param {string} startNode
@@ -102,6 +146,9 @@ export function validateDijkstraRun(graph, startNode, endNode) {
 
   const graphOk = validateGraphForDijkstra(graph)
   if (!graphOk.ok) return graphOk
+
+  const connectivityOk = validateGraphConnectivity(graph, startNode, endNode)
+  if (!connectivityOk.ok) return connectivityOk
 
   return { ok: true }
 }

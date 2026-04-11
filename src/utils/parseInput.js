@@ -26,9 +26,9 @@ export function parseInput(line) {
   }
 
   const parts = trimmed.split(/\s+/)
-  if (parts.length < 3) {
+  if (parts.length !== 3) {
     throw new Error(
-      'Formato inválido: se esperan tres campos (origen, destino y peso). Ejemplo: A B 4',
+      'Formato inválido: se esperan exactamente tres campos separados por espacios (origen destino peso). Ejemplo: A B 4',
     )
   }
 
@@ -40,8 +40,8 @@ export function parseInput(line) {
   if (!Number.isFinite(weight)) {
     throw new Error(`El peso debe ser un número válido. Se recibió: "${weightRaw}"`)
   }
-  if (weight < 0) {
-    throw new Error('El peso no puede ser negativo.')
+  if (weight <= 0) {
+    throw new Error('El peso debe ser un número mayor que 0.')
   }
   if (from === to) {
     throw new Error('El nodo origen y destino no pueden ser el mismo.')
