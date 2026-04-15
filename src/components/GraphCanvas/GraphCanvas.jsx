@@ -609,6 +609,7 @@ function paintFrame(canvas, size, drawSlice, pulse) {
     drawSlice.nodeLayoutOverrides,
     drawSlice.startNode,
     drawSlice.endNode,
+    drawSlice.graph.edges,
   )
 
   const edgeState = {
@@ -747,6 +748,7 @@ export function GraphCanvas() {
         st.nodeLayoutOverrides,
         st.startNode,
         st.endNode,
+        st.graph.edges,
       )
     }
 

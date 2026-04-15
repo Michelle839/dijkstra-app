@@ -1,23 +1,14 @@
 /**
- * Posiciones de nodos: círculo por defecto, o fila inicio (izq.) → destino (der.) si ambos están definidos.
+ * Layout de grafos: circular por defecto, BFS por niveles cuando hay origen/destino.
  */
 
-/**
- * @param {Array<{ id: string }>} nodes
- * @param {number} width
- * @param {number} height
- * @returns {Record<string, { x: number, y: number }>}
- */
 export function computeCircularLayout(nodes, width, height) {
   const cx = width / 2
   const cy = height / 2
-  const r = Math.min(width, height) * 0.31
+  const r = Math.min(width, height) * 0.34
 
   if (!nodes.length) return {}
-
-  if (nodes.length === 1) {
-    return { [nodes[0].id]: { x: cx, y: cy } }
-  }
+  if (nodes.length === 1) return { [nodes[0].id]: { x: cx, y: cy } }
 
   const sorted = [...nodes].sort((a, b) => a.id.localeCompare(b.id))
   const positions = {}
@@ -32,208 +23,164 @@ export function computeCircularLayout(nodes, width, height) {
 }
 
 /**
- * Origen a la izquierda, destino a la derecha; el resto repartidos en el centro.
- * @param {Array<{ id: string }>} nodes
- * @param {number} width
- * @param {number} height
- * @param {string} startId
- * @param {string} endId
+ * BFS desde startId para asignar niveles a cada nodo.
+ * El destino se fuerza al último nivel.
  */
-export function computeStartEndHorizontalLayout(
-  nodes,
-  width,
-  height,
-  startId,
-  endId,
-) {
-  const ids = new Set(nodes.map((n) => n.id))
-  if (
-    !startId ||
-    !endId ||
-    startId === endId ||
-    !ids.has(startId) ||
-    !ids.has(endId)
-  ) {
+function bfsLevels(nodeIds, edges, startId, endId) {
+  // Construir adyacencia
+  const adj = {}
+  for (const id of nodeIds) adj[id] = []
+  for (const e of edges) {
+    adj[e.from].push(e.to)
+    adj[e.to].push(e.from)
+  }
+
+  const level = {}
+  const queue = [startId]
+  level[startId] = 0
+
+  while (queue.length > 0) {
+    const u = queue.shift()
+    for (const v of adj[u]) {
+      if (level[v] === undefined) {
+        level[v] = level[u] + 1
+        queue.push(v)
+      }
+    }
+  }
+
+  // Nodos sin conexión con el origen → nivel máximo + 1
+  const maxLevel = Math.max(0, ...Object.values(level))
+  for (const id of nodeIds) {
+    if (level[id] === undefined) level[id] = maxLevel + 1
+  }
+
+  // Forzar destino al nivel más alto para que quede a la derecha
+  const destLevel = level[endId] ?? maxLevel
+  const forcedMax = Math.max(destLevel, maxLevel)
+  level[endId] = forcedMax
+
+  return level
+}
+
+/**
+ * Layout BFS por niveles: origen izquierda, destino derecha,
+ * intermedios distribuidos en columnas según distancia topológica.
+ */
+export function computeBFSLayout(nodes, edges, width, height, startId, endId) {
+  const nodeIds = nodes.map((n) => n.id)
+  const ids = new Set(nodeIds)
+
+  if (!startId || !endId || startId === endId || !ids.has(startId) || !ids.has(endId)) {
     return computeCircularLayout(nodes, width, height)
   }
 
-  const usableWidth = width * 0.90
-  const usableHeight = height * 0.65
-  const chatWidth = width * 0.10
-  const padding = usableWidth * 0.08
-  const marginY = usableHeight * 0.10
-  const leftX = chatWidth + Math.max(padding, usableWidth * 0.20)
-  const rightX = chatWidth + Math.min(usableWidth - padding, usableWidth * 0.80)
-  const centerY = usableHeight / 2
+  const level = bfsLevels(nodeIds, edges, startId, endId)
+
+  // Agrupar nodos por nivel
+  const byLevel = {}
+  for (const id of nodeIds) {
+    const l = level[id]
+    if (!byLevel[l]) byLevel[l] = []
+    byLevel[l].push(id)
+  }
+
+  const levels = Object.keys(byLevel).map(Number).sort((a, b) => a - b)
+  const numLevels = levels.length
+
+  const padX = width * 0.10
+  const padY = height * 0.12
+  const usableW = width - padX * 2
+  const usableH = height - padY * 2
 
   const positions = {}
-  positions[startId] = { x: leftX, y: centerY }
-  positions[endId] = { x: rightX, y: centerY }
 
-  const others = nodes
-    .map((n) => n.id)
-    .filter((id) => id !== startId && id !== endId)
-    .sort()
+  levels.forEach((l, colIdx) => {
+    const nodesInLevel = byLevel[l]
+    const x = numLevels === 1
+      ? width / 2
+      : padX + (usableW * colIdx) / (numLevels - 1)
 
-  const nO = others.length
-  if (nO === 0) return positions
-
-  // Distribución muy drástica y visible para nodos intermedios
-  const centerX = chatWidth + usableWidth / 2  // Centro del área del grafo
-  const maxRadius = Math.min(usableWidth * 0.35, usableHeight * 0.4)  // Radio grande para separación clara
-  
-  others.forEach((id, i) => {
-    let x, y
-    
-    if (nO === 1) {
-      // 1 nodo: perfectamente centrado
-      x = centerX
-      y = centerY
-    } else if (nO === 2) {
-      // 2 nodos: muy separados verticalmente
-      x = centerX
-      y = i === 0 ? centerY - maxRadius * 0.8 : centerY + maxRadius * 0.8
-    } else if (nO === 3) {
-      // 3 nodos: triángulo grande y bien separado
-      const positions = [
-        { x: centerX, y: centerY - maxRadius * 0.7 }, // arriba
-        { x: centerX - maxRadius * 0.6, y: centerY + maxRadius * 0.5 }, // abajo-izquierda
-        { x: centerX + maxRadius * 0.6, y: centerY + maxRadius * 0.5 }, // abajo-derecha
-      ]
-      const pos = positions[i]
-      x = pos.x
-      y = pos.y
-    } else if (nO === 4) {
-      // 4 nodos: cuadrado grande
-      const positions = [
-        { x: centerX - maxRadius * 0.6, y: centerY - maxRadius * 0.6 }, // arriba-izquierda
-        { x: centerX + maxRadius * 0.6, y: centerY - maxRadius * 0.6 }, // arriba-derecha
-        { x: centerX - maxRadius * 0.6, y: centerY + maxRadius * 0.6 }, // abajo-izquierda
-        { x: centerX + maxRadius * 0.6, y: centerY + maxRadius * 0.6 }, // abajo-derecha
-      ]
-      const pos = positions[i]
-      x = pos.x
-      y = pos.y
-    } else if (nO === 5) {
-      // 5 nodos: pentágono
-      const angle = (2 * Math.PI * i) / nO - Math.PI / 2
-      x = centerX + maxRadius * 0.7 * Math.cos(angle)
-      y = centerY + maxRadius * 0.7 * Math.sin(angle)
-    } else if (nO === 6) {
-      // 6 nodos: hexágono
-      const angle = (2 * Math.PI * i) / nO
-      x = centerX + maxRadius * 0.8 * Math.cos(angle)
-      y = centerY + maxRadius * 0.8 * Math.sin(angle)
-    } else {
-      // 7+ nodos: círculo grande
-      const angle = (2 * Math.PI * i) / nO - Math.PI / 2
-      x = centerX + maxRadius * Math.cos(angle)
-      y = centerY + maxRadius * Math.sin(angle)
-    }
-    
-    // Asegurar dentro de los límites del área del grafo
-    const finalX = Math.max(chatWidth + padding, Math.min(chatWidth + usableWidth - padding, x))
-    const finalY = Math.max(marginY, Math.min(usableHeight - marginY, y))
-    
-    positions[id] = { x: finalX, y: finalY }
+    nodesInLevel.forEach((id, rowIdx) => {
+      const count = nodesInLevel.length
+      // Centrar verticalmente el grupo de nodos de este nivel
+      const groupH = Math.min(usableH, (count - 1) * 110)
+      const groupTop = height / 2 - groupH / 2
+      const y = count === 1
+        ? height / 2
+        : groupTop + (groupH * rowIdx) / (count - 1)
+      positions[id] = { x, y }
+    })
   })
 
   return positions
 }
 
 /**
- * @param {Array<{ id: string }>} nodes
- * @param {number} width
- * @param {number} height
- * @param {string} startId
- * @param {string} endId
+ * Aplica fuerzas de repulsión suaves para evitar solapamiento.
  */
-export function computeBaseLayout(nodes, width, height, startId, endId) {
-  // Si hay origen y destino válidos, usar layout optimizado
-  if (startId && endId && startId !== endId) {
-    const ids = new Set(nodes.map((n) => n.id))
-    if (ids.has(startId) && ids.has(endId)) {
-      return computeStartEndHorizontalLayout(nodes, width, height, startId, endId)
-    }
-  }
-  
-  // Sino, usar layout circular
-  return computeCircularLayout(nodes, width, height)
-}
+function applyRepulsion(positions, minDist = 72) {
+  const ids = Object.keys(positions)
+  const out = {}
+  for (const id of ids) out[id] = { ...positions[id] }
 
-/**
- * Aplica fuerzas de repulsión entre nodos para evitar superposición
- */
-function applyRepulsionForces(positions, minDistance = 80) {
-  const nodeIds = Object.keys(positions)
-  const adjusted = { ...positions }
-  
-  for (let i = 0; i < nodeIds.length; i++) {
-    for (let j = i + 1; j < nodeIds.length; j++) {
-      const id1 = nodeIds[i]
-      const id2 = nodeIds[j]
-      const p1 = adjusted[id1]
-      const p2 = adjusted[id2]
-      
-      const dx = p2.x - p1.x
-      const dy = p2.y - p1.y
-      const distance = Math.hypot(dx, dy)
-      
-      if (distance < minDistance && distance > 0) {
-        const force = (minDistance - distance) / distance * 0.5
-        const fx = dx * force
-        const fy = dy * force
-        
-        adjusted[id1] = { x: p1.x - fx, y: p1.y - fy }
-        adjusted[id2] = { x: p2.x + fx, y: p2.y + fy }
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      const a = out[ids[i]]
+      const b = out[ids[j]]
+      const dx = b.x - a.x
+      const dy = b.y - a.y
+      const d = Math.hypot(dx, dy)
+      if (d < minDist && d > 0) {
+        const f = ((minDist - d) / d) * 0.45
+        out[ids[i]] = { x: a.x - dx * f, y: a.y - dy * f }
+        out[ids[j]] = { x: b.x + dx * f, y: b.y + dy * f }
       }
     }
   }
-  
-  return adjusted
+  return out
 }
 
 /**
- * Layout base + posiciones arrastradas (ratios 0–1) con mejor distribución.
+ * Layout base + posiciones arrastradas (ratios 0–1).
  */
-export function mergeLayoutWithOverrides(
-  nodes,
-  width,
-  height,
-  overrides,
-  startId,
-  endId,
-) {
-  const base = computeBaseLayout(nodes, width, height, startId, endId)
-  if (!overrides || typeof overrides !== 'object') return base
+export function mergeLayoutWithOverrides(nodes, width, height, overrides, startId, endId, edges = []) {
+  let base
 
   const ids = new Set(nodes.map((n) => n.id))
+  const hasStartEnd = startId && endId && startId !== endId && ids.has(startId) && ids.has(endId)
+
+  if (hasStartEnd && edges.length > 0) {
+    base = computeBFSLayout(nodes, edges, width, height, startId, endId)
+  } else {
+    base = computeCircularLayout(nodes, width, height)
+  }
+
   const out = { ...base }
-  
+
   // Aplicar posiciones arrastradas
-  for (const id of ids) {
-    const o = overrides[id]
-    if (
-      o &&
-      typeof o.rx === 'number' &&
-      typeof o.ry === 'number' &&
-      Number.isFinite(o.rx) &&
-      Number.isFinite(o.ry)
-    ) {
-      out[id] = { x: o.rx * width, y: o.ry * height }
+  if (overrides && typeof overrides === 'object') {
+    for (const id of ids) {
+      const o = overrides[id]
+      if (o && typeof o.rx === 'number' && typeof o.ry === 'number' &&
+          Number.isFinite(o.rx) && Number.isFinite(o.ry)) {
+        out[id] = { x: o.rx * width, y: o.ry * height }
+      }
     }
   }
-  
-  // Aplicar fuerzas de repulsión para mejorar distribución
-  const withRepulsion = applyRepulsionForces(out)
-  
-  // Asegurar que los nodos permanezcan dentro de los límites del canvas
-  const margin = 40
+
+  // Repulsión suave
+  const repulsed = applyRepulsion(out)
+
+  // Clamp dentro del canvas
+  const margin = 44
   for (const id of ids) {
-    const pos = withRepulsion[id]
-    pos.x = Math.max(margin, Math.min(width - margin, pos.x))
-    pos.y = Math.max(margin, Math.min(height - margin, pos.y))
+    const p = repulsed[id]
+    if (p) {
+      p.x = Math.max(margin, Math.min(width - margin, p.x))
+      p.y = Math.max(margin, Math.min(height - margin, p.y))
+    }
   }
-  
-  return withRepulsion
+
+  return repulsed
 }
