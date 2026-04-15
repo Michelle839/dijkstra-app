@@ -1,14 +1,10 @@
 /**
- * Implementación pura del algoritmo de Dijkstra para grafos no dirigidos.
- * No depende de React ni de ningún estado global: solo recibe datos y devuelve resultado.
+ * Dijkstra — cada iteración genera DOS pasos:
+ *   phase:'evaluate' → nodo u activo, aristas candidatas en amarillo,
+ *                      ya muestra quién será el próximo seleccionado
+ *   phase:'select'   → nodo v (el de menor dist) confirmado, arista u→v en rojo
  */
 
-/**
- * Construye lista de adyacencia (aristas en ambas direcciones).
- * @param {Array<{ from: string, to: string, weight: number }>} edges
- * @param {string[]} nodeIds
- * @returns {Record<string, Array<{ to: string, weight: number }>>}
- */
 function buildAdjacency(edges, nodeIds) {
   const adj = {}
   for (const id of nodeIds) adj[id] = []
@@ -19,9 +15,6 @@ function buildAdjacency(edges, nodeIds) {
   return adj
 }
 
-/**
- * Copia de distancias y predecesores para un paso de la simulación.
- */
 function snapshotDistancesAndPrev(nodeIds, dist, prev) {
   const distances = {}
   const previousNodes = {}
@@ -32,9 +25,6 @@ function snapshotDistancesAndPrev(nodeIds, dist, prev) {
   return { distances, previousNodes }
 }
 
-/**
- * Reconstruye el camino más corto desde `end` usando el mapa de predecesores.
- */
 function reconstructPath(prev, start, end) {
   const path = []
   let cur = end
@@ -47,13 +37,6 @@ function reconstructPath(prev, start, end) {
   return path
 }
 
-/**
- * Ejecuta Dijkstra y devuelve pasos para animación, camino final y distancia total.
- * @param {{ nodes: Array<{ id: string }>, edges: Array<{ from: string, to: string, weight: number }> }} graph
- * @param {string} start
- * @param {string} end
- * @returns {{ steps: object[], finalPath: string[], totalDistance: number }}
- */
 export function runDijkstra(graph, start, end) {
   const nodeIds = graph.nodes.map((n) => n.id)
   const adj = buildAdjacency(graph.edges, nodeIds)
@@ -71,6 +54,7 @@ export function runDijkstra(graph, start, end) {
   const selectedNodes = []
 
   while (visited.size < nodeIds.length) {
+    // Elegir nodo u con distancia mínima
     let u = null
     let best = Infinity
     for (const id of nodeIds) {
@@ -83,10 +67,11 @@ export function runDijkstra(graph, start, end) {
 
     selectedNodes.push({ node: u, distance: best, step: selectedNodes.length + 1 })
 
+    // Marcar u como visitado y relajar aristas
     visited.add(u)
-    const updatedNodes = []
     const edgesEvaluated = []
     const edgesUpdated = []
+    const updatedNodes = []
 
     for (const { to: v, weight } of adj[u] || []) {
       if (visited.has(v)) continue
@@ -100,32 +85,80 @@ export function runDijkstra(graph, start, end) {
       }
     }
 
-    // Descripción legible del paso para la UI
-    const { distances, previousNodes } = snapshotDistancesAndPrev(nodeIds, dist, prev)
+    const snap = snapshotDistancesAndPrev(nodeIds, dist, prev)
 
-    let description = `Nodo actual: ${u}  (dist. ${best})\n`
+    // Calcular quién será el próximo nodo seleccionado
+    let nextNode = null
+    let nextBest = Infinity
+    for (const id of nodeIds) {
+      if (!visited.has(id) && dist[id] < nextBest) {
+        nextBest = dist[id]
+        nextNode = id
+      }
+    }
+
+    // ── FASE A: evaluate ────────────────────────────────────
+    // Nodo u activo, aristas candidatas en amarillo.
+    // Muestra las distancias calculadas y quién será el próximo.
+    let descEval
     if (edgesEvaluated.length > 0) {
-      const evalStr = edgesEvaluated.map(({ to }) => {
-        const prev_d = dist[to] === Infinity ? '∞' : dist[to]
-        const changed = edgesUpdated.some((e) => e.to === to)
-        return changed ? `${u}→${to} mejoró a ${dist[to]}` : `${u}→${to} sin mejora (${prev_d})`
-      }).join(', ')
-      description += `Aristas: ${evalStr}`
+      const lines = edgesEvaluated.map(({ from, to }) => {
+        const w = adj[from].find(x => x.to === to)?.weight ?? '?'
+        const newD = best + w
+        const updated = edgesUpdated.some(e => e.to === to)
+        return `  ${from}→${to}: ${best} + ${w} = ${newD}${!updated ? `  (ya tenía ${snap.distances[to]})` : ''}`
+      }).join('\n')
+      descEval = `Nodo actual: ${u}  (dist. ${best})\nEvaluando vecinos:\n${lines}`
     } else {
-      description += `Sin vecinos no visitados.`
+      descEval = `Nodo actual: ${u}  (dist. ${best})\nSin vecinos no visitados.`
     }
 
     steps.push({
+      phase: 'evaluate',
       stepNumber: steps.length + 1,
       currentNode: u,
+      nextNode,
       visited: Array.from(visited),
-      distances,
-      updatedNodes,
+      distances: snap.distances,
+      previousNodes: snap.previousNodes,
       edgesEvaluated,
       edgesUpdated,
-      previousNodes,
-      description,
+      updatedNodes,
+      predecessorEdge: null,
+      description: descEval,
     })
+
+    // ── FASE B: select ──────────────────────────────────────
+    // Confirma el próximo nodo (nextNode) y marca su arista predecesora en rojo.
+    if (nextNode !== null) {
+      const nextPred = snap.previousNodes[nextNode]
+      const otherCandidates = nodeIds
+        .filter(id => !visited.has(id) && Number.isFinite(dist[id]) && id !== nextNode)
+        .sort((a, b) => dist[a] - dist[b])
+
+      const otherStr = otherCandidates.length > 0
+        ? `\nOtros candidatos: ${otherCandidates.map(id => `${id}(${dist[id]})`).join(', ')}`
+        : ''
+
+      const descSelect = nextPred != null
+        ? `✓ Seleccionado: ${nextNode}  (dist. mínima: ${nextBest})\nVía: ${nextPred}→${nextNode} — camino más corto conocido.${otherStr}`
+        : `✓ Seleccionado: ${nextNode}  (dist. ${nextBest})`
+
+      steps.push({
+        phase: 'select',
+        stepNumber: steps.length + 1,
+        currentNode: nextNode,
+        nextNode: null,
+        visited: Array.from(visited),
+        distances: snap.distances,
+        previousNodes: snap.previousNodes,
+        edgesEvaluated,   // mantener amarillas de contexto
+        edgesUpdated,
+        updatedNodes,
+        predecessorEdge: nextPred != null ? { from: nextPred, to: nextNode } : null,
+        description: descSelect,
+      })
+    }
   }
 
   const allPaths = {}
@@ -139,11 +172,5 @@ export function runDijkstra(graph, start, end) {
   const totalDistance = dist[end]
   const finalPath = Number.isFinite(totalDistance) ? reconstructPath(prev, start, end) : []
 
-  return {
-    steps,
-    finalPath,
-    allPaths,
-    selectedNodes,
-    totalDistance: Number.isFinite(totalDistance) ? totalDistance : Infinity,
-  }
+  return { steps, finalPath, allPaths, selectedNodes, totalDistance: Number.isFinite(totalDistance) ? totalDistance : Infinity }
 }

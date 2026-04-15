@@ -23,8 +23,10 @@ const NODE_HIT_RADIUS = 26
  * @param {boolean} showPath
  */
 function getSelectedNextNodeId(step, nextStep, showPath) {
-  if (!step || showPath || !nextStep) return null
-  return nextStep.currentNode
+  if (!step || showPath) return null
+  // Solo en select mostrar el anillo naranja del nodo seleccionado
+  if (step.phase === 'select') return step.currentNode
+  return null
 }
 
 /**
@@ -159,27 +161,44 @@ function isAllPathsEdge(from, to, allPaths) {
 }
 
 function edgeStyle(e, state) {
-  const onPath =
-    state.showPath && isPathEdge(e.from, e.to, state.finalPath)
-  const onAllPaths =
-    state.showPath && isAllPathsEdge(e.from, e.to, state.allPaths)
-
-  if (onPath || onAllPaths) {
-    return { stroke: EDGE_COLORS.path, lineWidth: 4, glow: 'rgba(216, 90, 48, 0.45)' }
+  // Estado final: todos los caminos mínimos en rojo-naranja
+  if (state.showPath) {
+    const onPath = isPathEdge(e.from, e.to, state.finalPath)
+    const onAllPaths = isAllPathsEdge(e.from, e.to, state.allPaths)
+    if (onPath || onAllPaths) {
+      return { stroke: EDGE_COLORS.path, lineWidth: 4, glow: 'rgba(216, 90, 48, 0.45)' }
+    }
+    return { stroke: EDGE_COLORS.default, lineWidth: 2.2 }
   }
 
-  const inUpdated =
-    state.step && edgeInStepList(e, state.step.edgesUpdated)
-  if (inUpdated) {
-    return { stroke: EDGE_RELAXED, lineWidth: 4.5, glow: 'rgba(198, 40, 40, 0.25)' }
+  if (!state.step) return { stroke: EDGE_COLORS.default, lineWidth: 2.2 }
+
+  const phase = state.step.phase
+
+  if (phase === 'select') {
+    // Solo la arista predecesora del nodo recién seleccionado → rojo
+    const pe = state.step.predecessorEdge
+    if (pe) {
+      const isPred =
+        (e.from === pe.from && e.to === pe.to) ||
+        (e.from === pe.to && e.to === pe.from)
+      if (isPred) {
+        return { stroke: EDGE_RELAXED, lineWidth: 4.5, glow: 'rgba(198, 40, 40, 0.4)' }
+      }
+    }
+    // Las demás candidatas del mismo evaluate → amarillo tenue (contexto)
+    const inEval = edgeInStepList(e, state.step.edgesEvaluated)
+    if (inEval) {
+      return { stroke: EDGE_EVALUATED_BASE, lineWidth: 2.5, glow: null }
+    }
+    return { stroke: EDGE_COLORS.default, lineWidth: 2.2 }
   }
 
-  const inEval =
-    state.step && edgeInStepList(e, state.step.edgesEvaluated)
+  // phase === 'evaluate': aristas candidatas → amarillo pulsante
+  const inEval = edgeInStepList(e, state.step.edgesEvaluated)
   if (inEval) {
     const t = state.pulse
-    const stroke =
-      t < 0.5 ? EDGE_EVALUATED_BASE : EDGE_EVALUATED_BRIGHT
+    const stroke = t < 0.5 ? EDGE_EVALUATED_BASE : EDGE_EVALUATED_BRIGHT
     return { stroke, lineWidth: 3 + t * 1.5, glow: 'rgba(232, 163, 23, 0.5)' }
   }
 
@@ -682,8 +701,8 @@ export function GraphCanvas() {
     const shouldPulse =
       currentStep >= 0 &&
       !drawSlice.showPath &&
-      (Boolean(step?.edgesEvaluated?.length) ||
-        Boolean(drawSlice.selectedNext))
+      step?.phase === 'evaluate' &&
+      Boolean(step?.edgesEvaluated?.length)
 
     const runPaint = (pulseVal) => {
       paintFrame(canvas, size, drawSlice, pulseVal)
