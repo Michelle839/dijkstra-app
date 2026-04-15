@@ -1,124 +1,148 @@
+/* ── Variables ──────────────────────────────────────────── */
+:root {
+  --blue:        #2563eb;
+  --blue-dark:   #1d4ed8;
+  --blue-dim:    rgba(37, 99, 235, 0.10);
+  --ink:         #0f172a;
+  --ink-mid:     #475569;
+  --ink-soft:    #94a3b8;
+  --surface:     rgba(255, 255, 255, 0.82);
+  --border:      rgba(15, 23, 42, 0.08);
+  --radius-lg:   18px;
+  --radius-pill: 999px;
+  --shadow-sm:   0 2px 8px  rgba(15, 23, 42, 0.07);
+  --shadow-md:   0 8px 32px rgba(15, 23, 42, 0.10);
+  --shadow-lg:   0 20px 60px rgba(15, 23, 42, 0.13);
+}
+
+/* ── Base ───────────────────────────────────────────────── */
 .app {
   height: 100vh;
   height: 100dvh;
-  min-height: 0;
   overflow: hidden;
   background:
-    radial-gradient(1200px 600px at 80% -10%, rgba(24, 95, 165, 0.12), transparent),
-    radial-gradient(800px 400px at 10% 100%, rgba(186, 117, 23, 0.08), transparent),
-    linear-gradient(165deg, #eef1f6 0%, #e4e9f0 45%, #dde3ec 100%);
+    radial-gradient(ellipse 900px 500px at 75% -5%,  rgba(37,99,235,0.09), transparent),
+    radial-gradient(ellipse 600px 400px at 5%  95%,  rgba(99,102,241,0.07), transparent),
+    linear-gradient(160deg, #f0f4fa 0%, #e8edf5 55%, #dfe5ef 100%);
 }
 
 .simulator {
-  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 
+/* ── Header ─────────────────────────────────────────────── */
 .simulator__header {
-  position: relative;
-  z-index: 10;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 14px 20px 12px;
-  margin: 12px 16px 0;
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.95);
-  box-shadow:
-    0 4px 24px rgba(15, 23, 42, 0.06),
-    0 1px 0 rgba(255, 255, 255, 0.8) inset;
-}
-
-.simulator__header-controls {
-  display: flex;
-  align-items: flex-end;
-  gap: 20px;
-  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 16px;
+  margin: 10px 12px 0;
+  background: var(--surface);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255,255,255,0.9);
+  box-shadow: var(--shadow-sm), 0 1px 0 rgba(255,255,255,0.7) inset;
+  z-index: 10;
 }
 
 .simulator__brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
-}
-
-.simulator__mark {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #185fa5 0%, #0d4a82 100%);
-  box-shadow: 0 6px 16px rgba(24, 95, 165, 0.35);
-  flex-shrink: 0;
 }
 
 .simulator__title {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: 1.2rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
-  color: #0f172a;
-  line-height: 1.15;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 .simulator__subtitle {
   margin: 2px 0 0;
-  font-size: 0.8rem;
-  color: #64748b;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
   font-weight: 500;
+  white-space: nowrap;
 }
 
+.simulator__header-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── Chat FAB ───────────────────────────────────────────── */
+.chat-fab {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: none;
+  background: var(--ink);
+  border-radius: 50%;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
+  transition: background 0.18s, transform 0.14s;
+}
+.chat-fab:hover  { background: #1e293b; transform: scale(1.07); }
+.chat-fab:active { transform: scale(0.94); }
+
+/* ── Alert ──────────────────────────────────────────────── */
 .simulator__alert {
   position: absolute;
-  top: 88px;
+  top: 76px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 30;
   display: flex;
   align-items: center;
-  gap: 12px;
-  max-width: min(520px, calc(100vw - 32px));
-  padding: 10px 14px;
-  background: rgba(254, 242, 242, 0.95);
+  gap: 10px;
+  width: min(480px, calc(100vw - 28px));
+  padding: 9px 13px;
+  background: rgba(254,242,242,0.97);
   border: 1px solid #fecaca;
-  border-radius: 14px;
+  border-radius: 13px;
   color: #991b1b;
-  font-size: 0.875rem;
-  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12);
+  font-size: 0.83rem;
+  box-shadow: var(--shadow-md);
 }
-
 .simulator__alert-close {
   margin-left: auto;
   border: none;
   background: transparent;
   color: #991b1b;
-  font-size: 1.35rem;
+  font-size: 1.2rem;
   line-height: 1;
   cursor: pointer;
-  padding: 0 4px;
-  border-radius: 8px;
+  padding: 0 3px;
+  border-radius: 5px;
 }
+.simulator__alert-close:hover { background: rgba(153,27,27,0.08); }
 
-.simulator__alert-close:hover {
-  background: rgba(153, 27, 27, 0.08);
-}
-
+/* ── Stage — desktop: row ───────────────────────────────── */
 .simulator__stage {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: row;
-  gap: 12px;
-  padding: 12px 16px 16px;
+  gap: 10px;
+  padding: 10px 12px 12px;
 }
 
 .simulator__canvas-wrap {
@@ -130,45 +154,47 @@
 
 .simulator__canvas-wrap .graph-canvas-wrap {
   height: 100%;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow:
-    0 12px 48px rgba(15, 23, 42, 0.08),
-    0 0 0 1px rgba(15, 23, 42, 0.03);
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.85);
+  box-shadow: var(--shadow-md);
 }
 
-/* FAB junto al título Dijkstra */
-.chat-fab {
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: #1e293b;
-  border-radius: 50%;
-  color: #fff;
-  font-size: 15px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
-  transition: background 0.2s ease, transform 0.15s ease;
-  flex-shrink: 0;
-}
-
-.chat-fab:hover {
-  background: #0f172a;
-  transform: scale(1.08);
-}
-
-@media (max-width: 720px) {
+/* ── Tablet: header se apila, chat más estrecho ─────────── */
+@media (max-width: 860px) {
   .simulator__header {
-    margin: 8px 10px 0;
-    padding: 12px 14px;
-    border-radius: 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 14px;
   }
+  .simulator__header-controls {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 10px;
+  }
+}
+
+/* ── Mobile: stage en columna, chat como drawer inferior ── */
+@media (max-width: 600px) {
+  .simulator__header {
+    margin: 6px 8px 0;
+    padding: 9px 12px;
+    border-radius: 14px;
+  }
+  .simulator__subtitle { display: none; }
 
   .simulator__stage {
     flex-direction: column;
-    padding: 10px 10px 16px;
+    padding: 8px 8px 10px;
+    gap: 8px;
+  }
+
+  /* Canvas ocupa la mayor parte */
+  .simulator__canvas-wrap {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .simulator__canvas-wrap .graph-canvas-wrap {
+    border-radius: 14px;
   }
 }

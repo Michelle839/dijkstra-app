@@ -14,7 +14,7 @@ import './App.css'
 function App() {
   useSimulationPlayback()
   const [runError, setRunError] = useState(null)
-  const [chatOpen, setChatOpen] = useState(true)
+  const [chatOpen, setChatOpen] = useState(() => window.innerWidth > 600)
 
   return (
     <div className="app">
