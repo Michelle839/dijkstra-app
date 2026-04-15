@@ -150,6 +150,7 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
+  overflow: visible;
 }
 
 .simulator__canvas-wrap .graph-canvas-wrap {
@@ -163,13 +164,16 @@
 @media (max-width: 860px) {
   .simulator__header {
     flex-wrap: wrap;
-    gap: 8px;
-    padding: 10px 14px;
+    gap: 6px;
+    padding: 8px 12px;
   }
   .simulator__header-controls {
     width: 100%;
     justify-content: flex-start;
-    gap: 10px;
+    gap: 8px;
+  }
+  .simulator__stage {
+    align-items: stretch;
   }
 }
 
@@ -197,4 +201,36 @@
   .simulator__canvas-wrap .graph-canvas-wrap {
     border-radius: 14px;
   }
+}
+
+/* ── Welcome hint (mobile only) ────────────────────────── */
+.welcome-hint {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .welcome-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 8px 0;
+    padding: 10px 14px;
+    background: rgba(37, 99, 235, 0.1);
+    border: 1px solid rgba(37, 99, 235, 0.2);
+    border-radius: 12px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--blue-dark);
+    cursor: pointer;
+    animation: pulse-hint 2s ease-in-out infinite;
+  }
+
+  .welcome-hint span {
+    font-size: 1rem;
+  }
+}
+
+@keyframes pulse-hint {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.65; }
 }

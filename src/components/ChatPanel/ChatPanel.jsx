@@ -32,7 +32,7 @@ export function ChatPanel() {
     if (lastResult && lastResult !== prevResultRef.current) {
       prevResultRef.current = lastResult
       const summary = formatDijkstraSummary(lastResult, lastResult.startNode, lastResult.endNode)
-      pushMessage('system', summary)
+      pushMessage('result', summary)
     }
   }, [lastResult, pushMessage])
 

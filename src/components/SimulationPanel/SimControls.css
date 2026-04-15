@@ -246,7 +246,22 @@
   transition: width 0.35s ease;
 }
 
-/* ── Hide legend on mobile ──────────────────────────────── */
+/* ── Mobile legend — parte superior ────────────────────── */
 @media (max-width: 600px) {
-  .sim-legend { display: none; }
+  .sim-legend {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    bottom: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    max-width: calc(100% - 16px);
+  }
+
+  .sim-legend__label { font-size: 0.62rem; }
+  .sim-legend__dot   { width: 9px; height: 9px; }
+  .sim-legend__edge  { width: 14px; height: 2px; }
 }

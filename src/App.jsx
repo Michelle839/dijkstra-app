@@ -15,6 +15,7 @@ function App() {
   useSimulationPlayback()
   const [runError, setRunError] = useState(null)
   const [chatOpen, setChatOpen] = useState(() => window.innerWidth > 600)
+  const [welcomed, setWelcomed] = useState(() => window.innerWidth > 600)
 
   return (
     <div className="app">
@@ -24,7 +25,7 @@ function App() {
             <button
               type="button"
               className="chat-fab"
-              onClick={() => setChatOpen((v) => !v)}
+              onClick={() => { setChatOpen((v) => !v); setWelcomed(true) }}
               aria-label={chatOpen ? 'Ocultar panel' : 'Mostrar panel'}
               title={chatOpen ? 'Ocultar panel' : 'Mostrar panel'}
             >
@@ -40,6 +41,12 @@ function App() {
             <EdgeStyleSelect />
           </div>
         </header>
+
+        {!welcomed && !chatOpen && (
+          <div className="welcome-hint" onClick={() => { setChatOpen(true); setWelcomed(true) }}>
+            <span>☰</span> Toca aquí para abrir el panel e ingresar el grafo
+          </div>
+        )}
 
         {runError && (
           <div className="simulator__alert" role="alert">
@@ -59,7 +66,7 @@ function App() {
           {chatOpen && <ChatPanel />}
           <div className="simulator__canvas-wrap">
             <GraphCanvas />
-            <SimControls onRunMessage={setRunError} />
+            <SimControls onRunMessage={setRunError} chatOpen={chatOpen} />
           </div>
         </div>
       </div>

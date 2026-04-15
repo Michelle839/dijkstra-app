@@ -19,42 +19,33 @@ function canonicalEdge(a, b) {
   return a < b ? [a, b] : [b, a]
 }
 
-// Genera el resumen del algoritmo para mostrar en el chat
+// Genera el resumen estructurado del algoritmo para mostrar en el chat
 export function formatDijkstraSummary(result, startNode, endNode) {
   const { steps, allPaths, finalPath, totalDistance } = result
 
-  let msg = `Ruta calculada desde ${startNode} → ${endNode}\n`
-  msg += `${'─'.repeat(34)}\n\n`
+  const paths = Object.entries(allPaths)
+    .filter(([id]) => id !== startNode)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([nodeId, { path, distance }]) => ({
+      nodeId,
+      path: path.join(' → '),
+      distance: Number.isFinite(distance) ? distance : '∞',
+    }))
 
-  // Caminos más cortos a todos los nodos
-  msg += `Caminos más cortos desde ${startNode}:\n`
-  const sorted = Object.entries(allPaths).sort(([a], [b]) => a.localeCompare(b))
-  for (const [nodeId, { path, distance }] of sorted) {
-    if (nodeId === startNode) continue
-    const distStr = Number.isFinite(distance) ? distance : '∞'
-    msg += `  → ${nodeId}: ${path.join(' → ')}  [${distStr}]\n`
-  }
-
-  msg += `\n`
-
-  // Ruta principal
-  if (finalPath.length > 0) {
-    msg += `Ruta óptima ${startNode} → ${endNode}:\n`
-    msg += `  ${finalPath.join(' → ')}  [costo: ${totalDistance}]\n`
-  } else {
-    msg += `No existe ruta de ${startNode} a ${endNode}.\n`
-  }
-
-  // Nodos inalcanzables
   const unreachable = steps.length > 0
-    ? steps[steps.length - 1].visited
-        .filter((id) => !allPaths[id])
+    ? steps[steps.length - 1].visited.filter((id) => !allPaths[id])
     : []
-  if (unreachable.length > 0) {
-    msg += `\nNodos inalcanzables: ${unreachable.join(', ')}\n`
-  }
 
-  return msg
+  return {
+    type: 'result',
+    startNode,
+    endNode,
+    finalPath: finalPath.join(' → '),
+    totalDistance: Number.isFinite(totalDistance) ? totalDistance : '∞',
+    hasPath: finalPath.length > 0,
+    paths,
+    unreachable,
+  }
 }
 
 export const useStore = create((set, get) => ({

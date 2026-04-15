@@ -23,7 +23,7 @@ const LEGEND_ITEMS_PATH = [
 /**
  * @param {{ onRunMessage: (msg: string | null) => void }} props
  */
-export function SimControls({ onRunMessage }) {
+export function SimControls({ onRunMessage, chatOpen = false }) {
   const steps = useStore((s) => s.steps)
   const currentStep = useStore((s) => s.currentStep)
   const isPlaying = useStore((s) => s.isPlaying)
@@ -65,7 +65,7 @@ export function SimControls({ onRunMessage }) {
   return (
     <>
       {/* Leyenda — esquina superior derecha del canvas */}
-      {hasSteps && (
+      {hasSteps && !chatOpen && (
         <div className="sim-legend" aria-label="Leyenda de colores">
           {(isLastStep ? LEGEND_ITEMS_PATH : LEGEND_ITEMS_SIMULATION).map((item) => (
             <div key={item.label} className="sim-legend__item">

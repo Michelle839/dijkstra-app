@@ -16,6 +16,13 @@ const NEXT_PICK_RING = '#F59E0B'
 const BG_GRID = 'rgba(15, 23, 42, 0.04)'
 const NODE_HIT_RADIUS = 26
 
+/** Radio adaptado al tamaño del canvas */
+function getNodeRadius(canvasWidth) {
+  if (canvasWidth < 400) return 18
+  if (canvasWidth < 600) return 21
+  return NODE_HIT_RADIUS
+}
+
 /**
  * Nodo que el algoritmo tomará como `currentNode` en el paso siguiente (mínima distancia entre no visitados).
  * @param {object} step
@@ -357,8 +364,7 @@ function formatDistancePredLabel(nodeId, step) {
  *   pulse: number,
  * }} state
  */
-function drawNodes(ctx, nodes, layout, state) {
-  const radius = NODE_HIT_RADIUS
+function drawNodes(ctx, nodes, layout, state, radius = NODE_HIT_RADIUS) {
   const pulse = state.pulse
 
   for (const n of nodes) {
@@ -640,7 +646,7 @@ function paintFrame(canvas, size, drawSlice, pulse) {
     currentNode,
     drawSlice.edgeRenderMode,
   )
-  drawNodes(ctx, drawSlice.graph.nodes, layout, nodeState)
+  drawNodes(ctx, drawSlice.graph.nodes, layout, nodeState, getNodeRadius(size.w))
 }
 
 export function GraphCanvas() {
@@ -765,7 +771,7 @@ export function GraphCanvas() {
         const p = layout[n.id]
         if (!p) continue
         const d2 = (x - p.x) ** 2 + (y - p.y) ** 2
-        if (d2 <= (NODE_HIT_RADIUS + 8) ** 2) return { id: n.id, p }
+        if (d2 <= (getNodeRadius(size.w) + 8) ** 2) return { id: n.id, p }
       }
       return null
     }
